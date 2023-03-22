@@ -26,7 +26,7 @@ import {PublicKey, SystemProgram, SYSVAR_INSTRUCTIONS_PUBKEY, Transaction} from 
 import BtcRPC from "../btc/BtcRPC";
 import BtcRelay from "../btcrelay/BtcRelay";
 import BTCMerkleTree from "../btcrelay/BTCMerkleTree";
-import BTCRelayProgram, {BtcRelayTxData} from "../btcrelay/program/BTCRelayProgram";
+import BTCRelayProgram from "../btcrelay/program/BTCRelayProgram";
 import SwapProgram, {
     getEscrow,
     getRefundSignature,
