@@ -255,8 +255,7 @@ class FromBtc {
 
             const {address: receiveAddress} = await lncli.createChainAddress({
                 lnd: LND,
-                format: "p2wpkh",
-                is_unused: true
+                format: "p2wpkh"
             });
 
             console.log("[From BTC: REST.CreateInvoice] Created receiving address: ", receiveAddress);
@@ -273,7 +272,9 @@ class FromBtc {
                 token: WBTC_ADDRESS,
                 amount: amountBD.sub(swapFee),
                 paymentHash: paymentHash.toString("hex"),
-                expiry: currentTimestamp.add(expiryTimeout)
+                expiry: currentTimestamp.add(expiryTimeout),
+                kind: 1,
+                confirmations: CONFIRMATIONS
             };
 
             createdSwap.data = data;
@@ -288,6 +289,7 @@ class FromBtc {
                 code: 10000,
                 msg: "Success",
                 data: {
+                    btcAddress: receiveAddress,
                     address: AnchorSigner.wallet.publicKey.toBase58(),
                     data: createdSwap.serialize().data,
                     nonce: sigData.nonce,

@@ -111,7 +111,9 @@ export type InitSignatureData = {
     token: PublicKey,
     amount: BN,
     paymentHash: string,
-    expiry: BN
+    expiry: BN,
+    kind?: number,
+    confirmations?: number
 };
 
 export type InitSignatureResponse = {
@@ -146,8 +148,8 @@ export const getInitSignature: (data: InitSignatureData) => InitSignatureRespons
     messageBuffers[4].writeBigUInt64LE(BigInt(data.amount.toString(10)));
     messageBuffers[5].writeBigUInt64LE(BigInt(data.expiry.toString(10)));
     messageBuffers[6] = Buffer.from(data.paymentHash, "hex");
-    messageBuffers[7].writeUint8(0);
-    messageBuffers[8].writeUint16LE(0);
+    messageBuffers[7].writeUint8(data.kind || 0);
+    messageBuffers[8].writeUint16LE(data.confirmations || 0);
     messageBuffers[9].writeBigUInt64LE(BigInt(authTimeout));
 
     const messageBuffer = Buffer.concat(messageBuffers);
