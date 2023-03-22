@@ -34,6 +34,8 @@ import SwapProgram, {
     SwapTxData,
     SwapUserVault
 } from "../sol/program/SwapProgram";
+import {getAssociatedTokenAddressSync} from "@solana/spl-token";
+import {pay} from "lightning";
 
 const TX_CHECK_INTERVAL = 10*1000;
 
@@ -111,7 +113,7 @@ class ToBtc {
         try {
             const fetchedDataAccount = await SwapProgram.account.data.fetch(txDataKey);
             console.log("[To BTC: Solana.Claim] Will erase previous data account");
-            const eraseTx = await BTCRelayProgram.methods
+            const eraseTx = await SwapProgram.methods
                 .closeData(merkleProof.reversedTxId)
                 .accounts({
                     signer: AnchorSigner.wallet.publicKey,
@@ -151,6 +153,7 @@ class ToBtc {
         const claimIx = await SwapProgram.methods
             .claimerClaimWithExtData(merkleProof.reversedTxId)
             .accounts({
+                signer: AnchorSigner.wallet.publicKey,
                 claimer: AnchorSigner.wallet.publicKey,
                 offerer: payment.offerer,
                 initializer: payment.data.initializer,
@@ -195,7 +198,7 @@ class ToBtc {
                 }
             }
 
-            if(payment.state===ToBtcSwapState.COMMITED || payment.state===ToBtcSwapState.BTC_SENT) {
+            if(payment.state===ToBtcSwapState.COMMITED || payment.state===ToBtcSwapState.BTC_SENDING || payment.state===ToBtcSwapState.BTC_SENT) {
                 await this.processInitialized(payment, payment.offerer, payment.data);
                 continue;
             }
@@ -260,7 +263,7 @@ class ToBtc {
 
     async processInitialized(payment: ToBtcSwap, offerer: PublicKey, data: ToBtcData) {
 
-        if(payment.state===ToBtcSwapState.BTC_SENT) {
+        if(payment.state===ToBtcSwapState.BTC_SENDING) {
             //Payment was signed (maybe also sent)
             let tx;
             try {
@@ -280,6 +283,9 @@ class ToBtc {
             if(tx==null) {
                 //Reset the state to COMMITED
                 payment.state = ToBtcSwapState.COMMITED;
+            } else {
+                payment.state = ToBtcSwapState.BTC_SENT;
+                await this.storageManager.saveData(payment.getHash(), payment);
             }
         }
 
@@ -415,7 +421,7 @@ class ToBtc {
             const tx = bitcoin.Transaction.fromHex(signedPsbt.transaction);
             const txId = tx.getId();
 
-            payment.state = ToBtcSwapState.BTC_SENT;
+            payment.state = ToBtcSwapState.BTC_SENDING;
             payment.offerer = offerer;
             payment.data = data;
             payment.txId = txId;
@@ -436,6 +442,9 @@ class ToBtc {
                 await unlockUtxos();
                 return;
             }
+
+            payment.state = ToBtcSwapState.BTC_SENT;
+            await this.storageManager.saveData(payment.getHash(), payment);
         }
 
         if(payment.state===ToBtcSwapState.NON_PAYABLE) return;
@@ -499,6 +508,18 @@ class ToBtc {
             ) {
                 if(ix.data.kind!==2) {
                     //Only process nonced on-chain requests
+                    continue;
+                }
+
+                if(ix.data.payOut) {
+                    //Only process requests that don't payout from the program
+                    continue;
+                }
+
+                const ourAta = getAssociatedTokenAddressSync(ix.accounts.mint, AnchorSigner.wallet.publicKey);
+
+                if(!ix.accounts.claimerTokenAccount.equals(ourAta)) {
+                    //Invalid ATA specified as our ATA
                     continue;
                 }
 
@@ -794,7 +815,7 @@ class ToBtc {
                     return;
                 }
 
-                if (payment.state === ToBtcSwapState.BTC_SENT) {
+                if (payment.state === ToBtcSwapState.BTC_SENT || payment.state===ToBtcSwapState.BTC_SENDING) {
                     res.status(200).json({
                         code: 20006,
                         msg: "Already paid",
@@ -847,7 +868,7 @@ class ToBtc {
 
         this.restServer.listen(this.restPort);
 
-        console.log("[To BTC-LN: REST] Started on port: ", this.restPort);
+        console.log("[To BTC: REST] Started on port: ", this.restPort);
     }
 
     subscribeToEvents() {

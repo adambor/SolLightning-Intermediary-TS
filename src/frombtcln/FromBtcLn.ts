@@ -178,7 +178,6 @@ class FromBtcLn {
             }
         }
 
-
         for(let ix of instructions) {
             if (ix == null) continue;
 

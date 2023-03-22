@@ -30,6 +30,7 @@ import {sign} from "tweetnacl";
 import SolEvents, {EventObject} from "../sol/SolEvents";
 import {createHash} from "crypto";
 import {PublicKey, SystemProgram, SYSVAR_INSTRUCTIONS_PUBKEY} from "@solana/web3.js";
+import {getAssociatedTokenAddressSync} from "@solana/spl-token";
 
 const MIN_LNSEND_CTLV = new BN(10);
 const MIN_LNSEND_TS_DELTA = GRACE_PERIOD.add(BITCOIN_BLOCKTIME.mul(MIN_LNSEND_CTLV).mul(SAFETY_FACTOR));
@@ -96,6 +97,7 @@ class ToBtcLn {
             let result = await SwapProgram.methods
                 .claimerClaim(Buffer.from(lnPaymentStatus.payment.secret, "hex"))
                 .accounts({
+                    signer: AnchorSigner.publicKey,
                     claimer: AnchorSigner.publicKey,
                     offerer: invoiceData.offerer,
                     initializer: invoiceData.data.initializer,
@@ -109,7 +111,7 @@ class ToBtcLn {
 
             const signature = await AnchorSigner.sendAndConfirm(result, [AnchorSigner.signer]);
 
-            console.log("[SOL->BTCLN: SOL.claimer_claim] Transaction sent: ", signature);
+            console.log("[To BTCLN: Solana.PaymentResult] Transaction sent: ", signature);
             return;
         }
 
@@ -305,6 +307,18 @@ class ToBtcLn {
             ) {
                 if(ix.data.kind!==0) {
                     //Only process ln requests
+                    continue;
+                }
+
+                if(ix.data.payOut) {
+                    //Only process requests that don't payout from the program
+                    continue;
+                }
+
+                const ourAta = getAssociatedTokenAddressSync(ix.accounts.mint, AnchorSigner.wallet.publicKey);
+
+                if(!ix.accounts.claimerTokenAccount.equals(ourAta)) {
+                    //Invalid ATA specified as our ATA
                     continue;
                 }
 

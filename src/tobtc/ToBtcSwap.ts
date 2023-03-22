@@ -20,7 +20,8 @@ export enum ToBtcSwapState {
     NON_PAYABLE = -1,
     SAVED = 0,
     COMMITED = 1,
-    BTC_SENT = 2
+    BTC_SENDING = 2,
+    BTC_SENT = 3
 }
 
 export class ToBtcSwap implements StorageObject {

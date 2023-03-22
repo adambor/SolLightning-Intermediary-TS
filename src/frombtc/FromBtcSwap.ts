@@ -1,5 +1,8 @@
 import * as BN from "bn.js";
 import {PublicKey} from "@solana/web3.js";
+import * as bitcoin from "bitcoinjs-lib";
+import {BITCOIN_NETWORK} from "../Constants";
+import {createHash} from "crypto";
 
 export type FromBtcData = {
     intermediary: PublicKey,
@@ -12,44 +15,35 @@ export type FromBtcData = {
 export enum FromBtcSwapState {
     CANCELED = -1,
     CREATED = 0,
-    RECEIVED = 1,
-    COMMITED = 2,
-    CLAIMED = 3
+    COMMITED = 1
 }
 
 export class FromBtcSwap implements StorageObject {
 
     state: FromBtcSwapState;
     readonly address: string;
-    readonly paymentHash: Buffer;
-    readonly btcPublicKey: Buffer;
-    readonly ourKeyIndex: number;
-    readonly csvDelta: number;
+    readonly amount: BN;
     readonly swapFee: BN;
+    authorizationExpiry: BN;
 
     data: FromBtcData;
     secret: string;
 
-    constructor(address: string, swapFee: BN, paymentHash: Buffer, btcPublicKey: Buffer, ourKeyIndex: number, csvDelta:number);
+    constructor(address: string, amount: BN, swapFee: BN);
     constructor(obj: any);
 
-    constructor(prOrObj: string | any, swapFee?: BN, paymentHash?: Buffer, btcPublicKey?: Buffer, ourKeyIndex?: number, csvDelta?:number) {
+    constructor(prOrObj: string | any, amount?: BN, swapFee?: BN) {
         if(typeof(prOrObj)==="string") {
             this.state = FromBtcSwapState.CREATED;
             this.address = prOrObj;
-            this.paymentHash = paymentHash;
-            this.btcPublicKey = btcPublicKey;
-            this.ourKeyIndex = ourKeyIndex;
-            this.csvDelta = csvDelta;
+            this.amount = amount;
             this.swapFee = swapFee;
         } else {
             this.state = prOrObj.state;
             this.address = prOrObj.address;
-            this.paymentHash = Buffer.from(prOrObj.paymentHash, "hex");
-            this.btcPublicKey = Buffer.from(prOrObj.btcPublicKey, "hex");
-            this.ourKeyIndex = prOrObj.ourKeyIndex;
-            this.csvDelta = prOrObj.csvDelta;
+            this.amount = new BN(prOrObj.amount);
             this.swapFee = new BN(prOrObj.swapFee);
+            this.authorizationExpiry = prOrObj.authorizationExpiry==null ? null : new BN(prOrObj.authorizationExpiry);
             if(prOrObj.data!=null) {
                 this.data = {
                     intermediary: new PublicKey(prOrObj.data.intermediary),
@@ -67,11 +61,9 @@ export class FromBtcSwap implements StorageObject {
         return {
             state: this.state,
             address: this.address,
-            paymentHash: this.paymentHash.toString("hex"),
-            btcPublicKey: this.btcPublicKey.toString("hex"),
-            ourKeyIndex: this.ourKeyIndex,
-            csvDelta: this.csvDelta,
+            amount: this.amount.toString(10),
             swapFee: this.swapFee.toString(10),
+            authorizationExpiry: this.authorizationExpiry==null ? null : this.authorizationExpiry.toString(10),
             data: this.data==null ? null : {
                 intermediary: this.data.intermediary.toBase58(),
                 token: this.data.token.toBase58(),
@@ -81,6 +73,25 @@ export class FromBtcSwap implements StorageObject {
             },
             secret: this.secret
         }
+    }
+
+    getHash(): Buffer {
+        const parsedOutputScript = bitcoin.address.toOutputScript(this.address, BITCOIN_NETWORK);
+
+        return createHash("sha256").update(Buffer.concat([
+            Buffer.from(new BN(0).toArray("le", 8)),
+            Buffer.from(this.amount.toArray("le", 8)),
+            parsedOutputScript
+        ])).digest();
+    }
+
+    getTxoHash(): Buffer {
+        const parsedOutputScript = bitcoin.address.toOutputScript(this.address, BITCOIN_NETWORK);
+
+        return createHash("sha256").update(Buffer.concat([
+            Buffer.from(this.amount.toArray("le", 8)),
+            parsedOutputScript
+        ])).digest();
     }
 
 }

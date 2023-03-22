@@ -133,6 +133,11 @@ export const programIdl = {
                     "isSigner": false
                 },
                 {
+                    "name": "claimerTokenAccount",
+                    "isMut": false,
+                    "isSigner": false
+                },
+                {
                     "name": "escrowState",
                     "isMut": true,
                     "isSigner": false
@@ -197,6 +202,19 @@ export const programIdl = {
                 {
                     "name": "nonce",
                     "type": "u64"
+                },
+                {
+                    "name": "payOut",
+                    "type": "bool"
+                },
+                {
+                    "name": "txoHash",
+                    "type": {
+                        "array": [
+                            "u8",
+                            32
+                        ]
+                    }
                 }
             ]
         },
@@ -220,6 +238,11 @@ export const programIdl = {
                 },
                 {
                     "name": "claimer",
+                    "isMut": false,
+                    "isSigner": false
+                },
+                {
+                    "name": "claimerTokenAccount",
                     "isMut": false,
                     "isSigner": false
                 },
@@ -293,6 +316,19 @@ export const programIdl = {
                         "array": [
                             "u8",
                             64
+                        ]
+                    }
+                },
+                {
+                    "name": "payOut",
+                    "type": "bool"
+                },
+                {
+                    "name": "txoHash",
+                    "type": {
+                        "array": [
+                            "u8",
+                            32
                         ]
                     }
                 }
@@ -484,22 +520,17 @@ export const programIdl = {
             "name": "claimerClaimPayOut",
             "accounts": [
                 {
-                    "name": "claimer",
-                    "isMut": false,
+                    "name": "signer",
+                    "isMut": true,
                     "isSigner": true
                 },
                 {
-                    "name": "claimerReceiveTokenAccount",
-                    "isMut": true,
-                    "isSigner": false
-                },
-                {
                     "name": "offerer",
-                    "isMut": true,
+                    "isMut": false,
                     "isSigner": false
                 },
                 {
-                    "name": "initializer",
+                    "name": "claimerReceiveTokenAccount",
                     "isMut": true,
                     "isSigner": false
                 },
@@ -540,18 +571,18 @@ export const programIdl = {
             "name": "claimerClaim",
             "accounts": [
                 {
-                    "name": "claimer",
+                    "name": "signer",
                     "isMut": true,
                     "isSigner": true
                 },
                 {
                     "name": "offerer",
-                    "isMut": true,
+                    "isMut": false,
                     "isSigner": false
                 },
                 {
-                    "name": "initializer",
-                    "isMut": true,
+                    "name": "claimer",
+                    "isMut": false,
                     "isSigner": false
                 },
                 {
@@ -586,22 +617,17 @@ export const programIdl = {
             "name": "claimerClaimPayOutWithExtData",
             "accounts": [
                 {
-                    "name": "claimer",
-                    "isMut": false,
+                    "name": "signer",
+                    "isMut": true,
                     "isSigner": true
                 },
                 {
-                    "name": "claimerReceiveTokenAccount",
-                    "isMut": true,
-                    "isSigner": false
-                },
-                {
                     "name": "offerer",
-                    "isMut": true,
+                    "isMut": false,
                     "isSigner": false
                 },
                 {
-                    "name": "initializer",
+                    "name": "claimerReceiveTokenAccount",
                     "isMut": true,
                     "isSigner": false
                 },
@@ -652,18 +678,18 @@ export const programIdl = {
             "name": "claimerClaimWithExtData",
             "accounts": [
                 {
-                    "name": "claimer",
+                    "name": "signer",
                     "isMut": true,
                     "isSigner": true
                 },
                 {
                     "name": "offerer",
-                    "isMut": true,
+                    "isMut": false,
                     "isSigner": false
                 },
                 {
-                    "name": "initializer",
-                    "isMut": true,
+                    "name": "claimer",
+                    "isMut": false,
                     "isSigner": false
                 },
                 {
@@ -806,7 +832,15 @@ export const programIdl = {
                         "type": "bool"
                     },
                     {
+                        "name": "payOut",
+                        "type": "bool"
+                    },
+                    {
                         "name": "offerer",
+                        "type": "publicKey"
+                    },
+                    {
+                        "name": "initializerDepositTokenAccount",
                         "type": "publicKey"
                     },
                     {
@@ -814,7 +848,7 @@ export const programIdl = {
                         "type": "publicKey"
                     },
                     {
-                        "name": "initializerDepositTokenAccount",
+                        "name": "claimerTokenAccount",
                         "type": "publicKey"
                     },
                     {
@@ -867,6 +901,16 @@ export const programIdl = {
             "fields": [
                 {
                     "name": "hash",
+                    "type": {
+                        "array": [
+                            "u8",
+                            32
+                        ]
+                    },
+                    "index": false
+                },
+                {
+                    "name": "txoHash",
                     "type": {
                         "array": [
                             "u8",
@@ -991,6 +1035,6 @@ export const programIdl = {
         }
     ],
     "metadata": {
-        "address": "AxE1wvXnceDMrappeMJWyh72YeEWaxcd984aVDSVBM1E"
+        "address": "4xdY2JN9aBisRCrpz11wEWjosAjLoidxoVRvivJUMuNU"
     }
 };
