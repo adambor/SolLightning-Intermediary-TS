@@ -6,6 +6,7 @@ import SolEvents from "./sol/SolEvents";
 import Nonce from "./sol/Nonce";
 import FromBtcLn from "./frombtcln/FromBtcLn";
 import * as fs from "fs/promises";
+import ToBtc from "./tobtc/ToBtc";
 
 async function main() {
 
@@ -20,6 +21,9 @@ async function main() {
 
     const fromBtcLn = new FromBtcLn("storage/frombtcln", 4000);
     await fromBtcLn.init();
+
+    const toBtc = new ToBtc("storage/tobtc", 4003);
+    await toBtc.init();
 
     await SolEvents.init();
 

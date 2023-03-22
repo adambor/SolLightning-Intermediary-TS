@@ -19,7 +19,13 @@ import {
 import LND from "../btc/LND";
 import * as lncli from "ln-service";
 import AnchorSigner from "../sol/AnchorSigner";
-import SwapProgram, {EscrowStateType, getEscrow, SwapEscrowState, SwapUserVault} from "../sol/program/SwapProgram";
+import SwapProgram, {
+    EscrowStateType,
+    getEscrow,
+    getRefundSignature,
+    SwapEscrowState,
+    SwapUserVault
+} from "../sol/program/SwapProgram";
 import {sign} from "tweetnacl";
 import SolEvents, {EventObject} from "../sol/SolEvents";
 import {createHash} from "crypto";
@@ -41,39 +47,6 @@ class ToBtcLn {
     constructor(storageDirectory: string, restPort: number) {
         this.storageManager = new StorageManager<ToBtcLnSwap>(storageDirectory);
         this.restPort = restPort;
-    }
-
-    static getRefundSignature(escrow: EscrowStateType): {
-        prefix: string,
-        timeout: string,
-        signature: string
-    } {
-        const authPrefix = "refund";
-        const authTimeout = Math.floor(Date.now()/1000)+AUTHORIZATION_TIMEOUT;
-
-        const messageBuffers = [
-            null,
-            Buffer.alloc(8),
-            Buffer.alloc(8),
-            null,
-            Buffer.alloc(8)
-        ];
-
-        messageBuffers[0] = Buffer.from(authPrefix, "ascii");
-        messageBuffers[1].writeBigUInt64LE(BigInt(escrow.initializerAmount.toString(10)));
-        messageBuffers[2].writeBigUInt64LE(BigInt(escrow.expiry.toString(10)));
-        messageBuffers[3] = Buffer.from(escrow.hash);
-        messageBuffers[4].writeBigUInt64LE(BigInt(authTimeout));
-
-        const messageBuffer = Buffer.concat(messageBuffers);
-
-        const signature = sign.detached(messageBuffer, AnchorSigner.signer.secretKey);
-
-        return {
-            prefix: authPrefix,
-            timeout: authTimeout.toString(10),
-            signature: Buffer.from(signature).toString("hex")
-        }
     }
 
     async checkPastInvoices() {
@@ -577,7 +550,7 @@ class ToBtcLn {
                         return;
                     }
 
-                    const refundSigData = ToBtcLn.getRefundSignature(escrowAccount);
+                    const refundSigData = getRefundSignature(escrowAccount);
 
                     res.status(200).json({
                         code: 20000,
@@ -639,7 +612,7 @@ class ToBtcLn {
                     return;
                 }
 
-                const refundSigData = ToBtcLn.getRefundSignature(escrowAccount);
+                const refundSigData = getRefundSignature(escrowAccount);
 
                 res.status(200).json({
                     code: 20000,

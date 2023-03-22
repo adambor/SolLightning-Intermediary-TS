@@ -6,7 +6,6 @@ import StorageManager from "../StorageManager";
 import {FromBtcLnData, FromBtcLnSwap, FromBtcLnSwapState} from "./FromBtcLnSwap";
 import {PublicKey} from "@solana/web3.js";
 import {
-    AUTHORIZATION_TIMEOUT,
     BITCOIN_BLOCKTIME,
     GRACE_PERIOD,
     LN_BASE_FEE,
@@ -16,17 +15,14 @@ import {
     SAFETY_FACTOR,
     WBTC_ADDRESS
 } from "../Constants";
-import SwapProgram, {getEscrow, SwapEscrowState, SwapUserVault} from "../sol/program/SwapProgram";
+import SwapProgram, {getEscrow, getInitSignature, SwapEscrowState, SwapUserVault} from "../sol/program/SwapProgram";
 import AnchorSigner from "../sol/AnchorSigner";
 import LND from "../btc/LND";
 import * as lncli from "ln-service";
-import {sign} from "tweetnacl";
 import Nonce from "../sol/Nonce";
 import SolEvents, {EventObject} from "../sol/SolEvents";
 import {createHash} from "crypto";
-import {pay} from "lightning";
-import {ToBtcLnSwap} from "../tobtcln/ToBtcLnSwap";
-
+import * as bolt11 from "bolt11";
 
 const HEX_REGEX = /[0-9a-fA-F]+/;
 
@@ -45,53 +41,9 @@ class FromBtcLn {
         this.restPort = restPort;
     }
 
-    static getInitSignature(data: FromBtcLnData): {
-        nonce: number,
-        prefix: string,
-        timeout: string,
-        signature: string
-    } {
-        const authPrefix = "initialize";
-        const authTimeout = Math.floor(Date.now()/1000)+AUTHORIZATION_TIMEOUT;
-        const useNonce = Nonce.getNonce()+1;
-
-        const messageBuffers = [
-            null,
-            Buffer.alloc(8),
-            null,
-            null,
-            Buffer.alloc(8),
-            Buffer.alloc(8),
-            null,
-            Buffer.alloc(1),
-            Buffer.alloc(2),
-            Buffer.alloc(8)
-        ];
-
-        messageBuffers[0] = Buffer.from(authPrefix, "ascii");
-        messageBuffers[1].writeBigUInt64LE(BigInt(useNonce));
-        messageBuffers[2] = data.token.toBuffer();
-        messageBuffers[3] = data.intermediary.toBuffer();
-        messageBuffers[4].writeBigUInt64LE(BigInt(data.amount.toString(10)));
-        messageBuffers[5].writeBigUInt64LE(BigInt(data.expiry.toString(10)));
-        messageBuffers[6] = Buffer.from(data.paymentHash, "hex");
-        messageBuffers[7].writeUint8(0);
-        messageBuffers[8].writeUint16LE(0);
-        messageBuffers[9].writeBigUInt64LE(BigInt(authTimeout));
-
-        const messageBuffer = Buffer.concat(messageBuffers);
-        const signature = sign.detached(messageBuffer, AnchorSigner.signer.secretKey);
-
-        return {
-            nonce: useNonce,
-            prefix: authPrefix,
-            timeout: authTimeout.toString(10),
-            signature: Buffer.from(signature).toString("hex")
-        }
-    }
-
     async checkPastSwaps() {
 
+        const removeSwaps: string[] = [];
         const settleInvoices: string[] = [];
         const cancelInvoices: string[] = [];
         const refundSwaps: FromBtcLnSwap[] = [];
@@ -100,6 +52,20 @@ class FromBtcLn {
             const swap = this.storageManager.data[key];
 
             if(swap.state===FromBtcLnSwapState.CREATED) {
+                const parsedPR = bolt11.decode(swap.pr);
+                //Invoice is expired
+                if(parsedPR.timeExpireDate<Date.now()/1000) {
+                    //Check if it really wasn't paid
+                    const invoice = await lncli.getInvoice({
+                        id: parsedPR.tagsObject.payment_hash,
+                        lnd: LND
+                    });
+
+                    if(!invoice.is_held) {
+                        //Remove
+                        removeSwaps.push(parsedPR.tagsObject.payment_hash);
+                    }
+                }
                 continue;
             }
 
@@ -138,6 +104,10 @@ class FromBtcLn {
                 }
 
                 cancelInvoices.push(swap.data.paymentHash);
+            }
+
+            for(let swapHash of removeSwaps) {
+                await this.storageManager.removeData(Buffer.from(swapHash, "hex"));
             }
 
             for(let refundSwap of refundSwaps) {
@@ -519,170 +489,176 @@ class FromBtcLn {
         });
 
         this.restServer.post("/getInvoicePaymentAuth", async (req, res) => {
-            /**
-             * paymentHash: string          payment hash of the invoice
-             */
-            if(
-                req.body==null ||
-
-                req.body.paymentHash==null ||
-                typeof(req.body.paymentHash)!=="string" ||
-                req.body.paymentHash.length!==64
-            ) {
-                res.status(400).json({
-                    msg: "Invalid request body (paymentHash)"
-                });
-                return;
-            }
-
-            const invoice = await lncli.getInvoice({
-                id: req.body.paymentHash,
-                lnd: LND
-            });
-
-            if(invoice==null) {
-                res.status(200).json({
-                    code: 10001,
-                    msg: "Invoice expired/canceled"
-                });
-                return;
-            }
-
             try {
-                if(!PublicKey.isOnCurve(invoice.description)) {
+                /**
+                 * paymentHash: string          payment hash of the invoice
+                 */
+                if (
+                    req.body == null ||
+
+                    req.body.paymentHash == null ||
+                    typeof(req.body.paymentHash) !== "string" ||
+                    req.body.paymentHash.length !== 64
+                ) {
+                    res.status(400).json({
+                        msg: "Invalid request body (paymentHash)"
+                    });
+                    return;
+                }
+
+                const invoice = await lncli.getInvoice({
+                    id: req.body.paymentHash,
+                    lnd: LND
+                });
+
+                if (invoice == null) {
                     res.status(200).json({
                         code: 10001,
                         msg: "Invoice expired/canceled"
                     });
                     return;
                 }
+
+                try {
+                    if (!PublicKey.isOnCurve(invoice.description)) {
+                        res.status(200).json({
+                            code: 10001,
+                            msg: "Invoice expired/canceled"
+                        });
+                        return;
+                    }
+                } catch (e) {
+                    res.status(200).json({
+                        code: 10001,
+                        msg: "Invoice expired/canceled"
+                    });
+                    return;
+                }
+
+                if (!invoice.is_held) {
+                    if (invoice.is_canceled) {
+                        res.status(200).json({
+                            code: 10001,
+                            msg: "Invoice expired/canceled"
+                        });
+                    } else if (invoice.is_confirmed) {
+                        res.status(200).json({
+                            code: 10002,
+                            msg: "Invoice already paid"
+                        });
+                    } else {
+                        res.status(200).json({
+                            code: 10003,
+                            msg: "Invoice yet unpaid"
+                        });
+                    }
+                    return;
+                }
+
+                const paymentHash = Buffer.from(req.body.paymentHash, "hex");
+                const invoiceData = this.storageManager.data[req.body.paymentHash];
+
+                if (invoiceData == null) {
+                    res.status(200).json({
+                        code: 10001,
+                        msg: "Invoice expired/canceled"
+                    });
+                    return;
+                }
+
+                if (invoiceData.state === FromBtcLnSwapState.CREATED) {
+                    console.log("[From BTC-LN: REST.GetInvoicePaymentAuth] held ln invoice: ", invoice);
+
+                    const tokenAccount: any = await SwapProgram.account.userAccount.fetch(SwapUserVault(AnchorSigner.publicKey));
+                    const balance = new BN(tokenAccount.amount.toString(10));
+
+                    const invoiceAmount = new BN(invoice.received);
+                    const fee = invoiceData.swapFee;
+                    const sendAmount = invoiceAmount.sub(fee);
+
+                    const cancelAndRemove = async () => {
+                        await lncli.cancelHodlInvoice({
+                            id: invoice.id,
+                            lnd: LND
+                        });
+                        await this.storageManager.removeData(paymentHash);
+                    };
+
+                    if (balance.lt(sendAmount)) {
+                        await cancelAndRemove();
+                        console.error("[From BTC-LN: REST.GetInvoicePaymentAuth] ERROR Not enough balance on SOL to honor the request");
+                        res.status(200).json({
+                            code: 20001,
+                            msg: "Not enough liquidity"
+                        });
+                        return;
+                    }
+
+                    let timeout: number = null;
+                    invoice.payments.forEach((curr) => {
+                        if (timeout == null || timeout > curr.timeout) timeout = curr.timeout;
+                    });
+                    const {current_block_height} = await lncli.getHeight({lnd: LND});
+
+                    const blockDelta = new BN(timeout - current_block_height);
+
+                    console.log("[From BTC-LN: REST.GetInvoicePaymentAuth] block delta: ", blockDelta.toString(10));
+
+                    const expiryTimeout = blockDelta.mul(BITCOIN_BLOCKTIME.div(SAFETY_FACTOR)).sub(GRACE_PERIOD);
+
+                    console.log("[From BTC-LN: REST.GetInvoicePaymentAuth] expiry timeout: ", expiryTimeout.toString(10));
+
+                    if (expiryTimeout.isNeg()) {
+                        await cancelAndRemove();
+                        console.error("[From BTC-LN: REST.GetInvoicePaymentAuth] Expire time is lower than 0");
+                        res.status(200).json({
+                            code: 20002,
+                            msg: "Not enough time to reliably process the swap"
+                        });
+                        return;
+                    }
+
+                    const payInvoiceObject: FromBtcLnData = {
+                        intermediary: new PublicKey(invoice.description),
+                        token: WBTC_ADDRESS,
+                        amount: sendAmount,
+                        paymentHash: req.body.paymentHash,
+                        expiry: new BN(Math.floor(Date.now() / 1000)).add(expiryTimeout)
+                    };
+
+                    invoiceData.data = payInvoiceObject;
+                    invoiceData.state = FromBtcLnSwapState.RECEIVED;
+                    await this.storageManager.saveData(paymentHash, invoiceData);
+                }
+
+                if (invoiceData.state === FromBtcLnSwapState.COMMITED) {
+                    res.status(200).json({
+                        code: 10004,
+                        msg: "Invoice already committed"
+                    });
+                    return;
+                }
+
+                const sigData = getInitSignature(invoiceData.data);
+
+                res.status(200).json({
+                    code: 10000,
+                    msg: "Success",
+                    data: {
+                        address: AnchorSigner.wallet.publicKey.toBase58(),
+                        data: invoiceData.serialize().data,
+                        nonce: sigData.nonce,
+                        prefix: sigData.prefix,
+                        timeout: sigData.timeout,
+                        signature: sigData.signature
+                    }
+                });
             } catch (e) {
-                res.status(200).json({
-                    code: 10001,
-                    msg: "Invoice expired/canceled"
+                console.error(e);
+                res.status(500).json({
+                    msg: "Internal server error"
                 });
-                return;
             }
-
-            if(!invoice.is_held) {
-                if(invoice.is_canceled) {
-                    res.status(200).json({
-                        code: 10001,
-                        msg: "Invoice expired/canceled"
-                    });
-                } else if(invoice.is_confirmed) {
-                    res.status(200).json({
-                        code: 10002,
-                        msg: "Invoice already paid"
-                    });
-                } else {
-                    res.status(200).json({
-                        code: 10003,
-                        msg: "Invoice yet unpaid"
-                    });
-                }
-                return;
-            }
-
-            const paymentHash = Buffer.from(req.body.paymentHash, "hex");
-            const invoiceData = this.storageManager.data[req.body.paymentHash];
-
-            if(invoiceData==null) {
-                res.status(200).json({
-                    code: 10001,
-                    msg: "Invoice expired/canceled"
-                });
-                return;
-            }
-
-            if(invoiceData.state===FromBtcLnSwapState.CREATED) {
-                console.log("[From BTC-LN: REST.GetInvoicePaymentAuth] held ln invoice: ", invoice);
-
-                const tokenAccount: any = await SwapProgram.account.userAccount.fetch(SwapUserVault(AnchorSigner.publicKey));
-                const balance = new BN(tokenAccount.amount.toString(10));
-
-                const invoiceAmount = new BN(invoice.received);
-                const fee = invoiceData.swapFee;
-                const sendAmount = invoiceAmount.sub(fee);
-
-                const cancelAndRemove = async() => {
-                    await lncli.cancelHodlInvoice({
-                        id: invoice.id,
-                        lnd: LND
-                    });
-                    await this.storageManager.removeData(paymentHash);
-                };
-
-                if(balance.lt(sendAmount)) {
-                    await cancelAndRemove();
-                    console.error("[From BTC-LN: REST.GetInvoicePaymentAuth] ERROR Not enough balance on SOL to honor the request");
-                    res.status(200).json({
-                        code: 20001,
-                        msg: "Not enough liquidity"
-                    });
-                    return;
-                }
-
-                let timeout: number = null;
-                invoice.payments.forEach((curr) => {
-                    if(timeout==null || timeout>curr.timeout) timeout = curr.timeout;
-                });
-                const {current_block_height} = await lncli.getHeight({lnd: LND});
-
-                const blockDelta = new BN(timeout-current_block_height);
-
-                console.log("[From BTC-LN: REST.GetInvoicePaymentAuth] block delta: ", blockDelta.toString(10));
-
-                const expiryTimeout = blockDelta.mul(BITCOIN_BLOCKTIME.div(SAFETY_FACTOR)).sub(GRACE_PERIOD);
-
-                console.log("[From BTC-LN: REST.GetInvoicePaymentAuth] expiry timeout: ", expiryTimeout.toString(10));
-
-                if(expiryTimeout.isNeg()) {
-                    await cancelAndRemove();
-                    console.error("[From BTC-LN: REST.GetInvoicePaymentAuth] Expire time is lower than 0");
-                    res.status(200).json({
-                        code: 20002,
-                        msg: "Not enough time to reliably process the swap"
-                    });
-                    return;
-                }
-
-                const payInvoiceObject: FromBtcLnData = {
-                    intermediary: new PublicKey(invoice.description),
-                    token: WBTC_ADDRESS,
-                    amount: sendAmount,
-                    paymentHash: req.body.paymentHash,
-                    expiry: new BN(Math.floor(Date.now()/1000)).add(expiryTimeout)
-                };
-
-                invoiceData.data = payInvoiceObject;
-                invoiceData.state = FromBtcLnSwapState.RECEIVED;
-                await this.storageManager.saveData(paymentHash, invoiceData);
-            }
-
-            if(invoiceData.state===FromBtcLnSwapState.COMMITED) {
-                res.status(200).json({
-                    code: 10004,
-                    msg: "Invoice already committed"
-                });
-                return;
-            }
-
-            const sigData = FromBtcLn.getInitSignature(invoiceData.data);
-
-            res.status(200).json({
-                code: 10000,
-                msg: "Success",
-                data: {
-                    address: AnchorSigner.wallet.publicKey.toBase58(),
-                    data: invoiceData.serialize().data,
-                    nonce: sigData.nonce,
-                    prefix: sigData.prefix,
-                    timeout: sigData.timeout,
-                    signature: sigData.signature
-                }
-            });
-
         });
 
         this.restServer.listen(this.restPort);
