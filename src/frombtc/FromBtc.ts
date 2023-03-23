@@ -30,7 +30,7 @@ import * as bolt11 from "bolt11";
 
 const HEX_REGEX = /[0-9a-fA-F]+/;
 
-const CONFIRMATIONS = 3;
+const CONFIRMATIONS = 1;
 const SWAP_CSV_DELTA = 144; //A day
 
 const REFUND_CHECK_INTERVAL = 15*60*1000;
@@ -117,6 +117,24 @@ class FromBtc {
     async processEvent(eventData: EventObject): Promise<boolean> {
         const {events, instructions} = eventData;
 
+        for(let event of events) {
+            if(event.name==="ClaimEvent") {
+                //Claim
+                const paymentHash: Buffer = Buffer.from(event.data.hash);
+
+                const paymentHashHex = paymentHash.toString("hex");
+
+                const savedSwap = this.storageManager.data[paymentHashHex];
+
+                if (savedSwap == null) {
+                    continue;
+                }
+
+                console.log("[From BTC: Solana.ClaimEvent] Swap claimed by claimer: ", paymentHashHex);
+                await this.storageManager.removeData(paymentHash);
+            }
+        }
+
         for(let ix of instructions) {
             if (ix == null) continue;
 
@@ -142,28 +160,6 @@ class FromBtc {
                     await this.storageManager.saveData(paymentHashBuffer, savedSwap);
                 }
 
-            }
-
-            if (
-                (ix.name === "claimerClaim" || ix.name === "claimerClaimPayOut") &&
-                ix.accounts.offerer.equals(AnchorSigner.wallet.publicKey)
-            ) {
-
-                //Claim
-                //This is the important part, we need to catch the claim TX, else we may lose money
-                const secret = Buffer.from(ix.data.secret);
-                const paymentHash = createHash("sha256").update(secret).digest();
-
-                const secretHex = secret.toString("hex");
-                const paymentHashHex = paymentHash.toString("hex");
-
-                const savedSwap = this.storageManager.data[paymentHashHex];
-
-                if (savedSwap == null) {
-                    continue;
-                }
-
-                await this.storageManager.removeData(paymentHash);
             }
         }
 

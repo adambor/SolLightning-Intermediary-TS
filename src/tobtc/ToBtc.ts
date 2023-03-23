@@ -26,7 +26,6 @@ import {PublicKey, SystemProgram, SYSVAR_INSTRUCTIONS_PUBKEY, Transaction} from 
 import BtcRPC from "../btc/BtcRPC";
 import BtcRelay from "../btcrelay/BtcRelay";
 import BTCMerkleTree from "../btcrelay/BTCMerkleTree";
-import BTCRelayProgram from "../btcrelay/program/BTCRelayProgram";
 import SwapProgram, {
     getEscrow,
     getRefundSignature,
@@ -35,7 +34,6 @@ import SwapProgram, {
     SwapUserVault
 } from "../sol/program/SwapProgram";
 import {getAssociatedTokenAddressSync} from "@solana/spl-token";
-import {pay} from "lightning";
 
 const TX_CHECK_INTERVAL = 10*1000;
 

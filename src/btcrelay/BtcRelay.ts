@@ -4,9 +4,7 @@ import BTCRelayProgram, {
     btcRelayProgramEventParser
 } from "./program/BTCRelayProgram";
 import AnchorSigner from "../sol/AnchorSigner";
-import {Store} from "tough-cookie";
 import {Signer, TransactionInstruction} from "@solana/web3.js";
-import {Instruction} from "@project-serum/anchor";
 
 const LOG_FETCH_LIMIT = 500;
 
