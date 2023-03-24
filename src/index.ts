@@ -15,8 +15,10 @@ async function main() {
         await fs.mkdir("storage")
     } catch (e) {}
 
+    //Initialize nonce
     await Nonce.init();
 
+    //Initialize
     const toBtc = new ToBtc("storage/tobtc", 4003);
     await toBtc.init();
 
@@ -29,8 +31,20 @@ async function main() {
     const fromBtcLn = new FromBtcLn("storage/frombtcln", 4000);
     await fromBtcLn.init();
 
+    //Sync to latest
     await SolEvents.init();
 
+    //Start watchdogs
+    await toBtc.startWatchdog();
+    await fromBtc.startWatchdog();
+    await toBtcLn.startWatchdog();
+    await fromBtcLn.startWatchdog();
+
+    //Start listening
+    await toBtc.startRestServer();
+    await fromBtc.startRestServer();
+    await toBtcLn.startRestServer();
+    await fromBtcLn.startRestServer();
 }
 
 main();

@@ -653,18 +653,18 @@ class ToBtcLn {
         console.log("[To BTC-LN: Solana.Events] Subscribed to Solana events");
     }
 
-    async init() {
-        await this.storageManager.loadData(ToBtcLnSwap);
-
+    async startWatchdog() {
         let rerun;
         rerun = async () => {
             await this.checkPastInvoices();
             setTimeout(rerun, INVOICE_CHECK_INTERVAL);
         };
         await rerun();
+    }
 
+    async init() {
+        await this.storageManager.loadData(ToBtcLnSwap);
         this.subscribeToEvents();
-        this.startRestServer();
     }
 
 }

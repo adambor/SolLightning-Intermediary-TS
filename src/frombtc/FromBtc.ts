@@ -87,30 +87,29 @@ class FromBtc {
                     }
                 }
             }
+        }
 
+        for(let swapHash of removeSwaps) {
+            await this.storageManager.removeData(swapHash);
+        }
 
-            for(let swapHash of removeSwaps) {
-                await this.storageManager.removeData(swapHash);
-            }
+        for(let refundSwap of refundSwaps) {
 
-            for(let refundSwap of refundSwaps) {
+            let result = await SwapProgram.methods
+                .offererRefund()
+                .accounts({
+                    offerer: AnchorSigner.wallet.publicKey,
+                    initializer: refundSwap.data.intermediary,
+                    userData: SwapUserVault(AnchorSigner.wallet.publicKey),
+                    escrowState: SwapEscrowState(Buffer.from(refundSwap.data.paymentHash, "hex"))
+                })
+                .signers([AnchorSigner.signer])
+                .transaction();
 
-                let result = await SwapProgram.methods
-                    .offererRefund()
-                    .accounts({
-                        offerer: AnchorSigner.wallet.publicKey,
-                        initializer: refundSwap.data.intermediary,
-                        userData: SwapUserVault(AnchorSigner.wallet.publicKey),
-                        escrowState: SwapEscrowState(Buffer.from(refundSwap.data.paymentHash, "hex"))
-                    })
-                    .signers([AnchorSigner.signer])
-                    .transaction();
+            const signature = await AnchorSigner.sendAndConfirm(result, [AnchorSigner.signer]);
 
-                const signature = await AnchorSigner.sendAndConfirm(result, [AnchorSigner.signer]);
+            console.log("[From BTC: Solana.Refund] Transaction confirmed! Signature: ", signature);
 
-                console.log("[From BTC: Solana.Refund] Transaction confirmed! Signature: ", signature);
-
-            }
         }
     }
 
@@ -308,18 +307,18 @@ class FromBtc {
         console.log("[From BTC: Solana.Events] Subscribed to Solana events");
     }
 
-    async init() {
-        await this.storageManager.loadData(FromBtcSwap);
-
+    async startWatchdog() {
         let rerun;
         rerun = async () => {
             await this.checkPastSwaps();
             setTimeout(rerun, REFUND_CHECK_INTERVAL);
         };
         await rerun();
+    }
 
+    async init() {
+        await this.storageManager.loadData(FromBtcSwap);
         this.subscribeToEvents();
-        this.startRestServer();
     }
 }
 

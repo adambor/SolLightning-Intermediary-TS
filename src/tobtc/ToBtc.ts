@@ -893,14 +893,14 @@ class ToBtc {
         await rerun();
     }
 
-    async init() {
-        await this.storageManager.loadData(ToBtcSwap);
-
+    async startWatchdog() {
         await this.startPastSwapsTimer();
         await this.startTxTimer();
+    }
 
+    async init() {
+        await this.storageManager.loadData(ToBtcSwap);
         this.subscribeToEvents();
-        this.startRestServer();
     }
 
 }

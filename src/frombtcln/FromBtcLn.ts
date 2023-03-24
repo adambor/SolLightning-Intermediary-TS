@@ -105,64 +105,62 @@ class FromBtcLn {
 
                 cancelInvoices.push(swap.data.paymentHash);
             }
+        }
 
-            for(let swapHash of removeSwaps) {
-                await this.storageManager.removeData(Buffer.from(swapHash, "hex"));
-            }
+        for(let swapHash of removeSwaps) {
+            await this.storageManager.removeData(Buffer.from(swapHash, "hex"));
+        }
 
-            for(let refundSwap of refundSwaps) {
+        for(let refundSwap of refundSwaps) {
 
-                let result = await SwapProgram.methods
-                    .offererRefund()
-                    .accounts({
-                        offerer: AnchorSigner.wallet.publicKey,
-                        initializer: refundSwap.data.intermediary,
-                        userData: SwapUserVault(AnchorSigner.wallet.publicKey),
-                        escrowState: SwapEscrowState(Buffer.from(refundSwap.data.paymentHash, "hex"))
-                    })
-                    .signers([AnchorSigner.signer])
-                    .transaction();
+            let result = await SwapProgram.methods
+                .offererRefund()
+                .accounts({
+                    offerer: AnchorSigner.wallet.publicKey,
+                    initializer: refundSwap.data.intermediary,
+                    userData: SwapUserVault(AnchorSigner.wallet.publicKey),
+                    escrowState: SwapEscrowState(Buffer.from(refundSwap.data.paymentHash, "hex"))
+                })
+                .signers([AnchorSigner.signer])
+                .transaction();
 
-                const signature = await AnchorSigner.sendAndConfirm(result, [AnchorSigner.signer]);
+            const signature = await AnchorSigner.sendAndConfirm(result, [AnchorSigner.signer]);
 
-                console.log("[From BTC-LN: Solana.Refund] Transaction confirmed! Signature: ", signature);
-
-            }
-
-            for(let paymentHash of cancelInvoices) {
-                //Refund
-                try {
-                    await lncli.cancelHodlInvoice({
-                        lnd: LND,
-                        id: paymentHash
-                    });
-                    console.log("[From BTC-LN: BTCLN.CancelHodlInvoice] Invoice cancelled, because was timed out, id: ", paymentHash);
-                    await this.storageManager.removeData(Buffer.from(paymentHash, "hex"));
-                } catch (e) {
-                    console.error("[From BTC-LN: BTCLN.CancelHodlInvoice] Cannot cancel hodl invoice id: ", paymentHash);
-                }
-            }
-
-            for(let secret of settleInvoices) {
-                //Refund
-                const secretBuffer = Buffer.from(secret, "hex");
-                const paymentHash = createHash("sha256").update(secretBuffer).digest();
-
-                try {
-                    await lncli.settleHodlInvoice({
-                        lnd: LND,
-                        secret: secret
-                    });
-
-                    console.log("[From BTC-LN: BTCLN.SettleHodlInvoice] Invoice settled, id: ", paymentHash.toString("hex"));
-                    await this.storageManager.removeData(paymentHash);
-                } catch (e) {
-                    console.error("[From BTC-LN: BTCLN.SettleHodlInvoice] Cannot cancel hodl invoice id: ", paymentHash.toString("hex"));
-                }
-            }
+            console.log("[From BTC-LN: Solana.Refund] Transaction confirmed! Signature: ", signature);
 
         }
 
+        for(let paymentHash of cancelInvoices) {
+            //Refund
+            try {
+                await lncli.cancelHodlInvoice({
+                    lnd: LND,
+                    id: paymentHash
+                });
+                console.log("[From BTC-LN: BTCLN.CancelHodlInvoice] Invoice cancelled, because was timed out, id: ", paymentHash);
+                await this.storageManager.removeData(Buffer.from(paymentHash, "hex"));
+            } catch (e) {
+                console.error("[From BTC-LN: BTCLN.CancelHodlInvoice] Cannot cancel hodl invoice id: ", paymentHash);
+            }
+        }
+
+        for(let secret of settleInvoices) {
+            //Refund
+            const secretBuffer = Buffer.from(secret, "hex");
+            const paymentHash = createHash("sha256").update(secretBuffer).digest();
+
+            try {
+                await lncli.settleHodlInvoice({
+                    lnd: LND,
+                    secret: secret
+                });
+
+                console.log("[From BTC-LN: BTCLN.SettleHodlInvoice] Invoice settled, id: ", paymentHash.toString("hex"));
+                await this.storageManager.removeData(paymentHash);
+            } catch (e) {
+                console.error("[From BTC-LN: BTCLN.SettleHodlInvoice] Cannot cancel hodl invoice id: ", paymentHash.toString("hex"));
+            }
+        }
     }
 
     async processEvent(eventData: EventObject): Promise<boolean> {
@@ -671,18 +669,18 @@ class FromBtcLn {
         console.log("[From BTC-LN: Solana.Events] Subscribed to Solana events");
     }
 
-    async init() {
-        await this.storageManager.loadData(FromBtcLnSwap);
-
+    async startWatchdog() {
         let rerun;
         rerun = async () => {
             await this.checkPastSwaps();
             setTimeout(rerun, SWAP_CHECK_INTERVAL);
         };
         await rerun();
+    }
 
+    async init() {
+        await this.storageManager.loadData(FromBtcLnSwap);
         this.subscribeToEvents();
-        this.startRestServer();
     }
 
 }
