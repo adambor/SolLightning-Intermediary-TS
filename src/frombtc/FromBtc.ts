@@ -30,7 +30,7 @@ import * as bolt11 from "bolt11";
 
 const HEX_REGEX = /[0-9a-fA-F]+/;
 
-const CONFIRMATIONS = 1;
+const CONFIRMATIONS = 2;
 const SWAP_CSV_DELTA = 144; //A day
 
 const REFUND_CHECK_INTERVAL = 15*60*1000;
