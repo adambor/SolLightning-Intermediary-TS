@@ -20,7 +20,7 @@ Be sure to open those ports so client SDK can call the REST APIs.
 ## Requirements
 * bitcoind node
 * lnd node (Install instructions [here](https://github.com/lightningnetwork/lnd/blob/master/docs/INSTALL.md))
-* nodejs
+* nodejs (requires v18 or higher)
 * npm
 * typescript
 
