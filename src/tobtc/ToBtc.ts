@@ -171,7 +171,9 @@ class ToBtc {
         solanaTx.recentBlockhash = (await AnchorSigner.connection.getRecentBlockhash()).blockhash;
 
         const signature = await AnchorSigner.sendAndConfirm(solanaTx, [AnchorSigner.signer]);
-        console.log("[To BTC: Solana.Claim] Transaction sent: ", signature);
+        console.log("[To BTC: Solana.Claim] Transaction confirmed: ", signature);
+
+        await this.storageManager.removeData(payment.getHash());
 
         return true;
     }
