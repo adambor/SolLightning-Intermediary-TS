@@ -12,6 +12,7 @@ import {
 } from "../../Constants";
 import {sign} from "tweetnacl";
 import Nonce from "../Nonce";
+import {getAssociatedTokenAddressSync} from "@solana/spl-token";
 
 const TX_DATA_SEED = "data";
 
@@ -151,6 +152,70 @@ export const getInitSignature: (data: InitSignatureData) => InitSignatureRespons
     messageBuffers[7].writeUint8(data.kind || 0);
     messageBuffers[8].writeUint16LE(data.confirmations || 0);
     messageBuffers[9].writeBigUInt64LE(BigInt(authTimeout));
+
+    const messageBuffer = Buffer.concat(messageBuffers);
+    const signature = sign.detached(messageBuffer, AnchorSigner.signer.secretKey);
+
+    return {
+        nonce: useNonce,
+        prefix: authPrefix,
+        timeout: authTimeout.toString(10),
+        signature: Buffer.from(signature).toString("hex")
+    }
+};
+
+export type ClaimInitSignatureData = {
+    intermediary: PublicKey,
+    token: PublicKey,
+    amount: BN,
+    paymentHash: string,
+    expiry: BN,
+    kind?: number,
+    confirmations?: number,
+    payOut?: boolean
+};
+
+export type ClaimInitSignatureResponse = {
+    nonce: number,
+    prefix: string,
+    timeout: string,
+    signature: string
+};
+
+export const getClaimInitSignature: (data: ClaimInitSignatureData) => ClaimInitSignatureResponse = (data: ClaimInitSignatureData): ClaimInitSignatureResponse => {
+    const authPrefix = "claim_initialize";
+    const authTimeout = Math.floor(Date.now()/1000)+AUTHORIZATION_TIMEOUT;
+    const useNonce = Nonce.getClaimNonce()+1;
+
+    const messageBuffers = [
+        null,
+        Buffer.alloc(8),
+        null,
+        Buffer.alloc(8),
+        Buffer.alloc(8),
+        null,
+        Buffer.alloc(1),
+        Buffer.alloc(2),
+        Buffer.alloc(8)
+    ];
+
+    messageBuffers[0] = Buffer.from(authPrefix, "ascii");
+    messageBuffers[1].writeBigUInt64LE(BigInt(useNonce));
+    messageBuffers[2] = data.token.toBuffer();
+    messageBuffers[3].writeBigUInt64LE(BigInt(data.amount.toString(10)));
+    messageBuffers[4].writeBigUInt64LE(BigInt(data.expiry.toString(10)));
+    messageBuffers[5] = Buffer.from(data.paymentHash, "hex");
+    messageBuffers[6].writeUint8(data.kind || 0);
+    messageBuffers[7].writeUint16LE(data.confirmations || 0);
+    messageBuffers[8].writeBigUInt64LE(BigInt(authTimeout));
+
+    if(data.payOut===true) {
+        const ata = getAssociatedTokenAddressSync(WBTC_ADDRESS, data.intermediary);
+        messageBuffers.push(Buffer.alloc(1, 1));
+        messageBuffers.push(ata.toBuffer());
+    } else {
+        messageBuffers.push(Buffer.alloc(1, 0));
+    }
 
     const messageBuffer = Buffer.concat(messageBuffers);
     const signature = sign.detached(messageBuffer, AnchorSigner.signer.secretKey);

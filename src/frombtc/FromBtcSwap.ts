@@ -11,7 +11,8 @@ export type FromBtcData = {
     paymentHash: string,
     expiry: BN,
     kind: number,
-    confirmations: number
+    confirmations: number,
+    payOut?: boolean
 };
 
 export enum FromBtcSwapState {
@@ -55,6 +56,7 @@ export class FromBtcSwap implements StorageObject {
                     expiry: new BN(prOrObj.data.expiry),
                     kind: prOrObj.data.kind,
                     confirmations: prOrObj.data.confirmations,
+                    payOut: prOrObj.data.payOut
                 };
             }
             this.secret = prOrObj.secret;
@@ -75,7 +77,8 @@ export class FromBtcSwap implements StorageObject {
                 paymentHash: this.data.paymentHash,
                 expiry: this.data.expiry.toString(10),
                 kind: this.data.kind,
-                confirmations: this.data.confirmations
+                confirmations: this.data.confirmations,
+                payOut: this.data.payOut
             },
             secret: this.secret
         }

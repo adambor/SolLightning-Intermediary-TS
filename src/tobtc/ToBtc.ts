@@ -27,6 +27,7 @@ import BtcRPC from "../btc/BtcRPC";
 import BtcRelay from "../btcrelay/BtcRelay";
 import BTCMerkleTree from "../btcrelay/BTCMerkleTree";
 import SwapProgram, {
+    getClaimInitSignature,
     getEscrow,
     getRefundSignature,
     SwapEscrowState,
@@ -34,6 +35,8 @@ import SwapProgram, {
     SwapUserVault
 } from "../sol/program/SwapProgram";
 import {getAssociatedTokenAddressSync} from "@solana/spl-token";
+import {FromBtcLnData} from "../frombtcln/FromBtcLnSwap";
+import Nonce from "../sol/Nonce";
 
 const TX_CHECK_INTERVAL = 10*1000;
 
@@ -516,6 +519,13 @@ class ToBtc {
                     continue;
                 }
 
+                if(ix.name === "offererInitializePayIn") {
+                    const usedNonce = ix.data.nonce.toNumber();
+                    if (usedNonce > Nonce.getClaimNonce()) {
+                        await Nonce.saveClaimNonce(usedNonce);
+                    }
+                }
+
                 const ourAta = getAssociatedTokenAddressSync(ix.accounts.mint, AnchorSigner.wallet.publicKey);
 
                 if(!ix.accounts.claimerTokenAccount.equals(ourAta)) {
@@ -560,7 +570,9 @@ class ToBtc {
                     amount: new BN(ix.data.initializerAmount.toString(10)),
                     paymentHash: paymentHash,
                     expiry: new BN(ix.data.expiry.toString(10)),
-                    nonce: new BN(log.nonce)
+                    nonce: new BN(log.nonce),
+                    payOut: ix.data.payOut,
+                    kind: ix.data.kind
                 });
             }
         }
@@ -758,10 +770,30 @@ class ToBtc {
 
             const createdSwap = new ToBtcSwap(req.body.address, amountBD, swapFee, nonce, req.body.confirmationTarget);
             const paymentHash = createdSwap.getHash();
-            await this.storageManager.saveData(paymentHash, createdSwap);
+
+            const total = amountBD.add(swapFee).add(networkFeeAdjusted);
 
             const currentTimestamp = new BN(Math.floor(Date.now()/1000));
             const minRequiredExpiry = currentTimestamp.add(expirySeconds);
+
+            const payObject: ToBtcData = {
+                intermediary: AnchorSigner.publicKey,
+                token: WBTC_ADDRESS,
+                amount: total,
+                paymentHash: createdSwap.getHash().toString("hex"),
+                expiry: minRequiredExpiry,
+                nonce: nonce,
+                initializer: null,
+                confirmations: req.body.confirmations,
+                payOut: false,
+                kind: 2
+            };
+
+            createdSwap.data = payObject;
+
+            await this.storageManager.saveData(paymentHash, createdSwap);
+
+            const sigData = getClaimInitSignature(payObject);
 
             res.status(200).json({
                 code: 20000,
@@ -772,9 +804,15 @@ class ToBtc {
                     satsPervByte: feeSatsPervByteAdjusted.toString(10),
                     swapFee: swapFee.toString(10),
                     totalFee: swapFee.add(networkFeeAdjusted).toString(10),
-                    total: amountBD.add(swapFee).add(networkFeeAdjusted).toString(10),
+                    total: total.toString(10),
                     minRequiredExpiry: minRequiredExpiry.toString(),
-                    offerExpiry: currentTimestamp.add(GRACE_PERIOD).toNumber()
+
+                    data: createdSwap.serialize().data,
+
+                    nonce: sigData.nonce,
+                    prefix: sigData.prefix,
+                    timeout: sigData.timeout,
+                    signature: sigData.signature
                 }
             });
 

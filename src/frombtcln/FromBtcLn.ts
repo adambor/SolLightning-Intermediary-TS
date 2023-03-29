@@ -113,14 +113,26 @@ class FromBtcLn {
 
         for(let refundSwap of refundSwaps) {
 
-            let result = await SwapProgram.methods
+            let builder = SwapProgram.methods
                 .offererRefund()
                 .accounts({
                     offerer: AnchorSigner.wallet.publicKey,
                     initializer: refundSwap.data.intermediary,
                     userData: SwapUserVault(AnchorSigner.wallet.publicKey),
                     escrowState: SwapEscrowState(Buffer.from(refundSwap.data.paymentHash, "hex"))
-                })
+                });
+
+            if(!refundSwap.data.payOut) {
+                builder = builder.remainingAccounts([
+                    {
+                        isSigner: false,
+                        isWritable: true,
+                        pubkey: SwapUserVault(refundSwap.data.intermediary)
+                    }
+                ])
+            }
+
+            let result = await builder
                 .signers([AnchorSigner.signer])
                 .transaction();
 
@@ -198,6 +210,7 @@ class FromBtcLn {
                 }
 
                 if (savedSwap != null) {
+                    savedSwap.data.payOut = ix.data.payOut;
                     await this.storageManager.saveData(paymentHashBuffer, savedSwap);
                 }
 

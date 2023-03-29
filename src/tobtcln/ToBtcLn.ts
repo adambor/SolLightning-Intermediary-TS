@@ -20,7 +20,7 @@ import LND from "../btc/LND";
 import * as lncli from "ln-service";
 import AnchorSigner from "../sol/AnchorSigner";
 import SwapProgram, {
-    EscrowStateType,
+    EscrowStateType, getClaimInitSignature,
     getEscrow,
     getRefundSignature,
     SwapEscrowState,
@@ -31,6 +31,8 @@ import SolEvents, {EventObject} from "../sol/SolEvents";
 import {createHash} from "crypto";
 import {PublicKey, SystemProgram, SYSVAR_INSTRUCTIONS_PUBKEY} from "@solana/web3.js";
 import {getAssociatedTokenAddressSync} from "@solana/spl-token";
+import Nonce from "../sol/Nonce";
+import {ToBtcData} from "../tobtc/ToBtcSwap";
 
 const MIN_LNSEND_CTLV = new BN(10);
 const MIN_LNSEND_TS_DELTA = GRACE_PERIOD.add(BITCOIN_BLOCKTIME.mul(MIN_LNSEND_CTLV).mul(SAFETY_FACTOR));
@@ -315,6 +317,13 @@ class ToBtcLn {
                     continue;
                 }
 
+                if(ix.name === "offererInitializePayIn") {
+                    const usedNonce = ix.data.nonce.toNumber();
+                    if (usedNonce > Nonce.getClaimNonce()) {
+                        await Nonce.saveClaimNonce(usedNonce);
+                    }
+                }
+
                 const ourAta = getAssociatedTokenAddressSync(ix.accounts.mint, AnchorSigner.wallet.publicKey);
 
                 if(!ix.accounts.claimerTokenAccount.equals(ourAta)) {
@@ -346,7 +355,10 @@ class ToBtcLn {
                     token: ix.accounts.mint,
                     amount: new BN(ix.data.initializerAmount.toString(10)),
                     paymentHash: Buffer.from(ix.data.hash).toString("hex"),
-                    expiry: new BN(ix.data.expiry.toString(10))
+                    expiry: new BN(ix.data.expiry.toString(10)),
+                    confirmations: ix.data.confirmations,
+                    payOut: ix.data.payOut,
+                    nonce: ix.data.escrowNonce
                 });
             }
         }
@@ -366,171 +378,202 @@ class ToBtcLn {
              * maxFee: string               maximum routing fee
              * expiryTimestamp: string      expiry timestamp of the to be created HTLC, determines how many LN paths can be considered
              */
-            if (
-                req.body == null ||
-
-                req.body.pr == null ||
-                typeof(req.body.pr) !== "string" ||
-
-                req.body.maxFee == null ||
-                typeof(req.body.maxFee) !== "string" ||
-
-                req.body.expiryTimestamp == null ||
-                typeof(req.body.expiryTimestamp) !== "string"
-            ) {
-                res.status(400).json({
-                    msg: "Invalid request body (pr/maxFee/expiryTimestamp)"
-                });
-                return;
-            }
-
-            let maxFeeBD: BN;
-
             try {
-                maxFeeBD = new BN(req.body.maxFee);
-            } catch (e) {
-                res.status(400).json({
-                    msg: "Invalid request body (maxFee - cannot be parsed)"
-                });
-                return;
-            }
+                if (
+                    req.body == null ||
 
-            let expiryTimestamp: BN;
+                    req.body.pr == null ||
+                    typeof(req.body.pr) !== "string" ||
 
-            try {
-                expiryTimestamp = new BN(req.body.expiryTimestamp)
-            } catch (e) {
-                res.status(400).json({
-                    msg: "Invalid request body (expiryTimestamp - cannot be parsed)"
-                });
-                return;
-            }
-            const currentTimestamp = new BN(Math.floor(Date.now()/1000));
+                    req.body.maxFee == null ||
+                    typeof(req.body.maxFee) !== "string" ||
 
-            let parsedPR: bolt11.PaymentRequestObject & { tagsObject: bolt11.TagsObject };
-
-            try {
-                parsedPR = bolt11.decode(req.body.pr);
-            } catch (e) {
-                console.error(e);
-                res.status(400).json({
-                    msg: "Invalid request body (pr - cannot be parsed)"
-                });
-                return;
-            }
-
-            if(parsedPR.timeExpireDate < Date.now()/1000) {
-                res.status(400).json({
-                    msg: "Invalid request body (pr - expired)"
-                });
-                return;
-            }
-
-            if(expiryTimestamp.sub(currentTimestamp).lt(MIN_LNSEND_TS_DELTA)) {
-                res.status(400).json({
-                    code: 20001,
-                    msg: "Expiry time too low!"
-                });
-                return;
-            }
-
-            const amountBD = new BN(parsedPR.satoshis);
-
-            if(amountBD.lt(LN_MIN)) {
-                res.status(400).json({
-                    code: 20003,
-                    msg: "Amount too low!",
-                    data: {
-                        min: LN_MIN.toString(10),
-                        max: LN_MAX.toString(10)
-                    }
-                });
-                return;
-            }
-
-            if(amountBD.gt(LN_MAX)) {
-                res.status(400).json({
-                    code: 20004,
-                    msg: "Amount too high!",
-                    data: {
-                        min: LN_MIN.toString(10),
-                        max: LN_MAX.toString(10)
-                    }
-                });
-                return;
-            }
-
-            //Check if prior payment has been made
-            try {
-                const payment = await lncli.getPayment({
-                    lnd: LND,
-                    id: parsedPR.tagsObject.payment_hash
-                });
-
-                if(payment!=null) {
+                    req.body.expiryTimestamp == null ||
+                    typeof(req.body.expiryTimestamp) !== "string"
+                ) {
                     res.status(400).json({
-                        code: 20010,
-                        msg: "Already processed"
+                        msg: "Invalid request body (pr/maxFee/expiryTimestamp)"
                     });
                     return;
                 }
-            } catch (e) {}
 
-            const maxUsableCLTV: BN = expiryTimestamp.sub(currentTimestamp).sub(GRACE_PERIOD).div(BITCOIN_BLOCKTIME.mul(SAFETY_FACTOR));
+                let maxFeeBD: BN;
 
-            const { current_block_height } = await lncli.getHeight({lnd: LND});
-
-            //Probe for a route
-            let obj;
-            try {
-                const parsedRequest = await lncli.parsePaymentRequest({
-                    request: req.body.pr
-                });
-
-                const probeReq: any = {
-                    destination: parsedPR.payeeNodeKey,
-                    cltv_delta: parsedPR.tagsObject.min_final_cltv_expiry,
-                    mtokens: parsedPR.millisatoshis,
-                    max_fee_mtokens: maxFeeBD.mul(new BN(1000)).toString(10),
-                    max_timeout_height: new BN(current_block_height).add(maxUsableCLTV).toString(10),
-                    payment: parsedRequest.payment,
-                    total_mtokens: parsedPR.millisatoshis,
-                    routes: parsedRequest.routes
-                };
-                //if(hints.length>0) req.routes = [hints];
-                console.log("[To BTC-LN: REST.payInvoice] Probe for route: ", probeReq);
-                probeReq.lnd = LND;
-                obj = await lncli.probeForRoute(probeReq);
-            } catch (e) {
-                console.log(e);
-            }
-
-            console.log("[To BTC-LN: REST.payInvoice] Probe result: ", obj);
-
-            if(obj==null || obj.route==null) {
-                res.status(400).json({
-                    code: 20002,
-                    msg: "Cannot route the payment!"
-                });
-                return;
-            }
-
-            const swapFee = amountBD.mul(LN_FEE_PPM).div(new BN(1000000)).add(LN_BASE_FEE);
-
-            const createdSwap = new ToBtcLnSwap(req.body.pr, swapFee);
-
-            await this.storageManager.saveData(Buffer.from(parsedPR.tagsObject.payment_hash, "hex"), createdSwap);
-
-            res.status(200).json({
-                code: 20000,
-                msg: "Success",
-                data: {
-                    swapFee: swapFee.toString(10),
-                    total: amountBD.add(maxFeeBD).add(swapFee).toString(10),
-                    confidence: obj.route.confidence/1000000,
-                    address: AnchorSigner.publicKey.toBase58()
+                try {
+                    maxFeeBD = new BN(req.body.maxFee);
+                } catch (e) {
+                    res.status(400).json({
+                        msg: "Invalid request body (maxFee - cannot be parsed)"
+                    });
+                    return;
                 }
-            });
+
+                let expiryTimestamp: BN;
+
+                try {
+                    expiryTimestamp = new BN(req.body.expiryTimestamp)
+                } catch (e) {
+                    res.status(400).json({
+                        msg: "Invalid request body (expiryTimestamp - cannot be parsed)"
+                    });
+                    return;
+                }
+                const currentTimestamp = new BN(Math.floor(Date.now()/1000));
+
+                let parsedPR: bolt11.PaymentRequestObject & { tagsObject: bolt11.TagsObject };
+
+                try {
+                    parsedPR = bolt11.decode(req.body.pr);
+                } catch (e) {
+                    console.error(e);
+                    res.status(400).json({
+                        msg: "Invalid request body (pr - cannot be parsed)"
+                    });
+                    return;
+                }
+
+                if(parsedPR.timeExpireDate < Date.now()/1000) {
+                    res.status(400).json({
+                        msg: "Invalid request body (pr - expired)"
+                    });
+                    return;
+                }
+
+                if(expiryTimestamp.sub(currentTimestamp).lt(MIN_LNSEND_TS_DELTA)) {
+                    res.status(400).json({
+                        code: 20001,
+                        msg: "Expiry time too low!"
+                    });
+                    return;
+                }
+
+                const amountBD = new BN(parsedPR.satoshis);
+
+                if(amountBD.lt(LN_MIN)) {
+                    res.status(400).json({
+                        code: 20003,
+                        msg: "Amount too low!",
+                        data: {
+                            min: LN_MIN.toString(10),
+                            max: LN_MAX.toString(10)
+                        }
+                    });
+                    return;
+                }
+
+                if(amountBD.gt(LN_MAX)) {
+                    res.status(400).json({
+                        code: 20004,
+                        msg: "Amount too high!",
+                        data: {
+                            min: LN_MIN.toString(10),
+                            max: LN_MAX.toString(10)
+                        }
+                    });
+                    return;
+                }
+
+                //Check if prior payment has been made
+                try {
+                    const payment = await lncli.getPayment({
+                        lnd: LND,
+                        id: parsedPR.tagsObject.payment_hash
+                    });
+
+                    if(payment!=null) {
+                        res.status(400).json({
+                            code: 20010,
+                            msg: "Already processed"
+                        });
+                        return;
+                    }
+                } catch (e) {}
+
+                const maxUsableCLTV: BN = expiryTimestamp.sub(currentTimestamp).sub(GRACE_PERIOD).div(BITCOIN_BLOCKTIME.mul(SAFETY_FACTOR));
+
+                const { current_block_height } = await lncli.getHeight({lnd: LND});
+
+                //Probe for a route
+                let obj;
+                try {
+                    const parsedRequest = await lncli.parsePaymentRequest({
+                        request: req.body.pr
+                    });
+
+                    const probeReq: any = {
+                        destination: parsedPR.payeeNodeKey,
+                        cltv_delta: parsedPR.tagsObject.min_final_cltv_expiry,
+                        mtokens: parsedPR.millisatoshis,
+                        max_fee_mtokens: maxFeeBD.mul(new BN(1000)).toString(10),
+                        max_timeout_height: new BN(current_block_height).add(maxUsableCLTV).toString(10),
+                        payment: parsedRequest.payment,
+                        total_mtokens: parsedPR.millisatoshis,
+                        routes: parsedRequest.routes
+                    };
+                    //if(hints.length>0) req.routes = [hints];
+                    console.log("[To BTC-LN: REST.payInvoice] Probe for route: ", probeReq);
+                    probeReq.lnd = LND;
+                    obj = await lncli.probeForRoute(probeReq);
+                } catch (e) {
+                    console.log(e);
+                }
+
+                console.log("[To BTC-LN: REST.payInvoice] Probe result: ", obj);
+
+                if(obj==null || obj.route==null) {
+                    res.status(400).json({
+                        code: 20002,
+                        msg: "Cannot route the payment!"
+                    });
+                    return;
+                }
+
+                const swapFee = amountBD.mul(LN_FEE_PPM).div(new BN(1000000)).add(LN_BASE_FEE);
+
+                const createdSwap = new ToBtcLnSwap(req.body.pr, swapFee);
+
+                const total = amountBD.add(maxFeeBD).add(swapFee);
+
+                const payObject: ToBtcLnData = {
+                    intermediary: AnchorSigner.publicKey,
+                    token: WBTC_ADDRESS,
+                    amount: total,
+                    paymentHash: createdSwap.getHash(),
+                    expiry: expiryTimestamp,
+                    nonce: new BN(0),
+                    initializer: null,
+                    confirmations: 0,
+                    payOut: false
+                };
+
+                createdSwap.data = payObject;
+
+                await this.storageManager.saveData(Buffer.from(parsedPR.tagsObject.payment_hash, "hex"), createdSwap);
+
+                const sigData = getClaimInitSignature(payObject);
+
+                res.status(200).json({
+                    code: 20000,
+                    msg: "Success",
+                    data: {
+                        swapFee: swapFee.toString(10),
+                        total: total.toString(10),
+                        confidence: obj.route.confidence/1000000,
+                        address: AnchorSigner.publicKey.toBase58(),
+
+                        data: createdSwap.serialize().data,
+
+                        nonce: sigData.nonce,
+                        prefix: sigData.prefix,
+                        timeout: sigData.timeout,
+                        signature: sigData.signature
+                    }
+                });
+
+            } catch(e) {
+                console.error(e);
+                res.status(500).send("Server error");
+            }
         });
 
         this.restServer.post('/getRefundAuthorization', async (req, res) => {

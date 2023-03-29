@@ -10,7 +10,8 @@
     "airdrop": "node dist/utils/airdrop.js",
     "createToken": "node dist/utils/createToken.js",
     "mint": "node dist/utils/mint.js",
-    "deposit": "node dist/utils/deposit.js"
+    "deposit": "node dist/utils/deposit.js",
+    "getReputation": "node dist/utils/getReputation.js"
   },
   "author": "adambor",
   "license": "ISC",

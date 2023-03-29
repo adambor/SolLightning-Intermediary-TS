@@ -1,5 +1,6 @@
 import * as BN from "bn.js";
 import {PublicKey} from "@solana/web3.js";
+import * as bolt11 from "bolt11";
 
 export type ToBtcLnData = {
     initializer: PublicKey,
@@ -7,7 +8,11 @@ export type ToBtcLnData = {
     token: PublicKey,
     amount: BN,
     paymentHash: string,
-    expiry: BN
+    expiry: BN,
+
+    nonce: BN,
+    confirmations: number,
+    payOut: boolean
 };
 
 export enum ToBtcLnSwapState {
@@ -41,12 +46,15 @@ export class ToBtcLnSwap implements StorageObject{
             if(prOrObj.offerer!=null) this.offerer = new PublicKey(prOrObj.offerer);
             if(prOrObj.data!=null) {
                 this.data = {
-                    initializer: new PublicKey(prOrObj.data.initializer),
+                    initializer: prOrObj.data.initializer==null ? null : new PublicKey(prOrObj.data.initializer),
                     intermediary: new PublicKey(prOrObj.data.intermediary),
                     token: new PublicKey(prOrObj.data.token),
                     amount: new BN(prOrObj.data.amount),
                     paymentHash: prOrObj.data.paymentHash,
                     expiry: new BN(prOrObj.data.expiry),
+                    nonce: new BN(prOrObj.data.nonce),
+                    confirmations: prOrObj.data.confirmations,
+                    payOut: prOrObj.data.payOut,
                 };
             }
         }
@@ -59,14 +67,21 @@ export class ToBtcLnSwap implements StorageObject{
             swapFee: this.swapFee.toString(10),
             offerer: this.offerer==null ? null : this.offerer.toBase58(),
             data: this.data==null ? null : {
-                initializer: this.data.initializer.toBase58(),
+                initializer: this.data.initializer==null ? null : this.data.initializer.toBase58(),
                 intermediary: this.data.intermediary.toBase58(),
                 token: this.data.token.toBase58(),
                 amount: this.data.amount.toString(10),
                 paymentHash: this.data.paymentHash,
                 expiry: this.data.expiry.toString(10),
+                nonce: this.data.nonce.toString(10),
+                confirmations: this.data.confirmations,
+                payOut: this.data.payOut,
             },
         }
+    }
+
+    getHash(): string {
+        return bolt11.decode(this.pr).tagsObject.payment_hash;
     }
 
 }

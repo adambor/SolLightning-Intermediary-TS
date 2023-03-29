@@ -138,6 +138,11 @@ export const programIdl = {
                     "isSigner": false
                 },
                 {
+                    "name": "userData",
+                    "isMut": true,
+                    "isSigner": false
+                },
+                {
                     "name": "escrowState",
                     "isMut": true,
                     "isSigner": false
@@ -171,9 +176,18 @@ export const programIdl = {
                     "name": "tokenProgram",
                     "isMut": false,
                     "isSigner": false
+                },
+                {
+                    "name": "ixSysvar",
+                    "isMut": false,
+                    "isSigner": false
                 }
             ],
             "args": [
+                {
+                    "name": "nonce",
+                    "type": "u64"
+                },
                 {
                     "name": "initializerAmount",
                     "type": "u64"
@@ -200,7 +214,20 @@ export const programIdl = {
                     "type": "u16"
                 },
                 {
-                    "name": "nonce",
+                    "name": "authExpiry",
+                    "type": "u64"
+                },
+                {
+                    "name": "signature",
+                    "type": {
+                        "array": [
+                            "u8",
+                            64
+                        ]
+                    }
+                },
+                {
+                    "name": "escrowNonce",
                     "type": "u64"
                 },
                 {
@@ -878,6 +905,64 @@ export const programIdl = {
                     {
                         "name": "amount",
                         "type": "u64"
+                    },
+                    {
+                        "name": "claimNonce",
+                        "type": "u64"
+                    },
+                    {
+                        "name": "successVolume",
+                        "type": {
+                            "array": [
+                                "u64",
+                                3
+                            ]
+                        }
+                    },
+                    {
+                        "name": "successCount",
+                        "type": {
+                            "array": [
+                                "u64",
+                                3
+                            ]
+                        }
+                    },
+                    {
+                        "name": "failVolume",
+                        "type": {
+                            "array": [
+                                "u64",
+                                3
+                            ]
+                        }
+                    },
+                    {
+                        "name": "failCount",
+                        "type": {
+                            "array": [
+                                "u64",
+                                3
+                            ]
+                        }
+                    },
+                    {
+                        "name": "coopCloseVolume",
+                        "type": {
+                            "array": [
+                                "u64",
+                                3
+                            ]
+                        }
+                    },
+                    {
+                        "name": "coopCloseCount",
+                        "type": {
+                            "array": [
+                                "u64",
+                                3
+                            ]
+                        }
                     }
                 ]
             }
@@ -1032,9 +1117,14 @@ export const programIdl = {
             "code": 6012,
             "name": "InvalidDataAccount",
             "msg": "Invalid data account"
+        },
+        {
+            "code": 6013,
+            "name": "InvalidUserData",
+            "msg": "Invalid user data account"
         }
     ],
     "metadata": {
-        "address": "4xdY2JN9aBisRCrpz11wEWjosAjLoidxoVRvivJUMuNU"
+        "address": "6k1kyCtt2hTYHqS8s1QdkhY7mfFdFeYWfrzLjrzQRyaX"
     }
 };

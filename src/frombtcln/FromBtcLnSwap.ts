@@ -6,7 +6,8 @@ export type FromBtcLnData = {
     token: PublicKey,
     amount: BN,
     paymentHash: string,
-    expiry: BN
+    expiry: BN,
+    payOut?: boolean
 };
 
 export enum FromBtcLnSwapState {
@@ -44,7 +45,8 @@ export class FromBtcLnSwap implements StorageObject {
                     token: new PublicKey(prOrObj.data.token),
                     amount: new BN(prOrObj.data.amount),
                     paymentHash: prOrObj.data.paymentHash,
-                    expiry: new BN(prOrObj.data.expiry)
+                    expiry: new BN(prOrObj.data.expiry),
+                    payOut: prOrObj.payOut
                 };
             }
             this.secret = prOrObj.secret;
@@ -62,6 +64,7 @@ export class FromBtcLnSwap implements StorageObject {
                 amount: this.data.amount.toString(10),
                 paymentHash: this.data.paymentHash,
                 expiry: this.data.expiry.toString(10),
+                payOut: this.data.payOut
             },
             secret: this.secret
         }

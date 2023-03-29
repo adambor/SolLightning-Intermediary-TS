@@ -13,7 +13,9 @@ export type ToBtcData = {
     expiry: BN,
 
     nonce: BN,
-    confirmations: number
+    confirmations: number,
+    payOut: boolean,
+    kind: number
 };
 
 export enum ToBtcSwapState {
@@ -60,7 +62,7 @@ export class ToBtcSwap implements StorageObject {
             if(prOrObj.offerer!=null) this.offerer = new PublicKey(prOrObj.offerer);
             if(prOrObj.data!=null) {
                 this.data = {
-                    initializer: new PublicKey(prOrObj.data.initializer),
+                    initializer: prOrObj.data.initializer==null ? null : new PublicKey(prOrObj.data.initializer),
                     intermediary: new PublicKey(prOrObj.data.intermediary),
                     token: new PublicKey(prOrObj.data.token),
                     amount: new BN(prOrObj.data.amount),
@@ -68,6 +70,8 @@ export class ToBtcSwap implements StorageObject {
                     expiry: new BN(prOrObj.data.expiry),
                     nonce: new BN(prOrObj.data.nonce),
                     confirmations: prOrObj.data.confirmations,
+                    payOut: prOrObj.data.payOut,
+                    kind: prOrObj.data.kind,
                 };
             }
             this.txId = prOrObj.txId;
@@ -86,14 +90,16 @@ export class ToBtcSwap implements StorageObject {
 
             offerer: this.offerer==null ? null : this.offerer.toBase58(),
             data: this.data==null ? null : {
-                initializer: this.data.initializer.toBase58(),
+                initializer: this.data.initializer==null ? null : this.data.initializer.toBase58(),
                 intermediary: this.data.intermediary.toBase58(),
                 token: this.data.token.toBase58(),
                 amount: this.data.amount.toString(10),
                 paymentHash: this.data.paymentHash,
                 expiry: this.data.expiry.toString(10),
                 nonce: this.data.nonce.toString(10),
-                confirmations: this.data.confirmations
+                confirmations: this.data.confirmations,
+                payOut: this.data.payOut,
+                kind: this.data.kind,
             },
             txId: this.txId
         }
