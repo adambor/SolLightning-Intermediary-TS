@@ -135,13 +135,16 @@ export default class SolEvents {
         }
     }
 
-    static init() {
-        return new Promise<void>((resolve, reject) => {
-            SolEvents.checkEvents().then(() => {
-                resolve();
-                setInterval(SolEvents.checkEvents, LOG_FETCH_INTERVAL);
+    static async init(): Promise<void> {
+        let func;
+        func = async () => {
+            await SolEvents.checkEvents().catch(e => {
+                console.error("Failed to fetch Sol log");
+                console.error(e);
             });
-        });
+            setTimeout(func, LOG_FETCH_INTERVAL);
+        };
+        await func();
     }
 
     static registerListener(cbk: EventListener) {
