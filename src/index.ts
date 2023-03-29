@@ -19,16 +19,16 @@ async function main() {
     await Nonce.init();
 
     //Initialize
-    const toBtc = new ToBtc("storage/tobtc", 4003);
+    const toBtc = new ToBtc("storage/tobtc", process.env.TO_BTC_PORT==null ? 4003 : parseInt(process.env.TO_BTC_PORT));
     await toBtc.init();
 
-    const fromBtc = new FromBtc("storage/frombtc", 4002);
+    const fromBtc = new FromBtc("storage/frombtc", process.env.FROM_BTC_PORT==null ? 4002 : parseInt(process.env.FROM_BTC_PORT));
     await fromBtc.init();
 
-    const toBtcLn = new ToBtcLn("storage/tobtcln", 4001);
+    const toBtcLn = new ToBtcLn("storage/tobtcln", process.env.TO_BTCLN_PORT==null ? 4001 : parseInt(process.env.TO_BTCLN_PORT));
     await toBtcLn.init();
 
-    const fromBtcLn = new FromBtcLn("storage/frombtcln", 4000);
+    const fromBtcLn = new FromBtcLn("storage/frombtcln", process.env.FROM_BTCLN_PORT==null ? 4000 : parseInt(process.env.FROM_BTCLN_PORT));
     await fromBtcLn.init();
 
     //Sync to latest
