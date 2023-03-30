@@ -101,7 +101,16 @@ class ToBtc {
 
         console.log("[To BTC: Solana.Claim] Merkle proof computed: ", merkleProof);
 
-        const rawTxBuffer: Buffer = Buffer.from(tx.hex, "hex");
+        const witnessRawTxBuffer: Buffer = Buffer.from(tx.hex, "hex");
+
+        const btcTx = bitcoin.Transaction.fromBuffer(witnessRawTxBuffer);
+
+        for(let txIn of btcTx.ins) {
+            txIn.witness = [];
+        }
+
+        const rawTxBuffer: Buffer = btcTx.toBuffer();
+
         const writeData: Buffer = Buffer.concat([
             Buffer.from(new BN(vout).toArray("le", 4)),
             rawTxBuffer
