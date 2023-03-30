@@ -31,7 +31,7 @@ import SwapProgram, {
     getEscrow,
     getRefundSignature,
     SwapEscrowState,
-    SwapTxData,
+    SwapTxData, SwapTxDataAlt,
     SwapUserVault
 } from "../sol/program/SwapProgram";
 import {getAssociatedTokenAddressSync} from "@solana/spl-token";
@@ -118,16 +118,16 @@ class ToBtc {
 
         console.log("[To BTC: Solana.Claim] Writing transaction data: ", writeData.toString("hex"));
 
-        const txDataKey = SwapTxData(merkleProof.reversedTxId, AnchorSigner.wallet.publicKey);
+        const txDataKey = SwapTxDataAlt(merkleProof.reversedTxId, AnchorSigner.signer);
 
         try {
-            const fetchedDataAccount = await SwapProgram.account.data.fetch(txDataKey);
+            const fetchedDataAccount = await SwapProgram.account.data.fetch(txDataKey.publicKey);
             console.log("[To BTC: Solana.Claim] Will erase previous data account");
             const eraseTx = await SwapProgram.methods
-                .closeData(merkleProof.reversedTxId)
+                .closeData()
                 .accounts({
                     signer: AnchorSigner.wallet.publicKey,
-                    data: txDataKey
+                    data: txDataKey.publicKey
                 })
                 .signers([AnchorSigner.signer])
                 .transaction();
@@ -136,16 +136,45 @@ class ToBtc {
             console.log("[To BTC: Solana.Claim] Previous data account erased: ", signature);
         } catch (e) {}
 
+        {
+            const dataSize = writeData.length;
+            const accountSize = 32+dataSize;
+            const lamports = await AnchorSigner.connection.getMinimumBalanceForRentExemption(accountSize);
+
+            const accIx = SystemProgram.createAccount({
+                fromPubkey: AnchorSigner.publicKey,
+                newAccountPubkey: txDataKey.publicKey,
+                lamports,
+                space: accountSize,
+                programId: SwapProgram.programId
+            });
+
+            const initIx = await SwapProgram.methods
+                .initData()
+                .accounts({
+                    signer: AnchorSigner.wallet.publicKey,
+                    data: txDataKey.publicKey
+                })
+                .signers([AnchorSigner.signer, txDataKey])
+                .instruction();
+
+            const initTx = new Transaction();
+            initTx.add(accIx);
+            initTx.add(initIx);
+
+            const signature = await AnchorSigner.sendAndConfirm(initTx, [AnchorSigner.signer, txDataKey]);
+            console.log("[To BTC: Solana.Claim] New data account initialized: ", signature);
+        }
+
         let pointer = 0;
         while(pointer<writeData.length) {
-            const writeLen = Math.min(writeData.length-pointer, 1000);
+            const writeLen = Math.min(writeData.length-pointer, 950);
 
             const writeTx = await SwapProgram.methods
-                .writeData(merkleProof.reversedTxId, writeData.length, writeData.slice(pointer, writeLen))
+                .writeData(pointer, writeData.slice(pointer, writeLen))
                 .accounts({
                     signer: AnchorSigner.signer.publicKey,
-                    data: txDataKey,
-                    systemProgram: SystemProgram.programId
+                    data: txDataKey.publicKey
                 })
                 .signers([AnchorSigner.signer])
                 .transaction();
@@ -161,13 +190,13 @@ class ToBtc {
 
         const verifyIx = await BtcRelay.createVerifyIx(AnchorSigner.signer, merkleProof.reversedTxId, payment.data.confirmations, merkleProof.pos, merkleProof.merkle, commitedHeader);
         const claimIx = await SwapProgram.methods
-            .claimerClaimWithExtData(merkleProof.reversedTxId)
+            .claimerClaimWithExtData()
             .accounts({
                 signer: AnchorSigner.wallet.publicKey,
                 claimer: AnchorSigner.wallet.publicKey,
                 offerer: payment.offerer,
                 initializer: payment.data.initializer,
-                data: txDataKey,
+                data: txDataKey.publicKey,
                 userData: SwapUserVault(AnchorSigner.wallet.publicKey),
                 escrowState: SwapEscrowState(Buffer.from(payment.data.paymentHash, "hex")),
                 systemProgram: SystemProgram.programId,

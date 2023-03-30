@@ -689,17 +689,7 @@ export const programIdl = {
                     "isSigner": false
                 }
             ],
-            "args": [
-                {
-                    "name": "reversedTxId",
-                    "type": {
-                        "array": [
-                            "u8",
-                            32
-                        ]
-                    }
-                }
-            ]
+            "args": []
         },
         {
             "name": "claimerClaimWithExtData",
@@ -745,17 +735,23 @@ export const programIdl = {
                     "isSigner": false
                 }
             ],
-            "args": [
+            "args": []
+        },
+        {
+            "name": "initData",
+            "accounts": [
                 {
-                    "name": "reversedTxId",
-                    "type": {
-                        "array": [
-                            "u8",
-                            32
-                        ]
-                    }
+                    "name": "signer",
+                    "isMut": true,
+                    "isSigner": true
+                },
+                {
+                    "name": "data",
+                    "isMut": true,
+                    "isSigner": true
                 }
-            ]
+            ],
+            "args": []
         },
         {
             "name": "writeData",
@@ -769,25 +765,11 @@ export const programIdl = {
                     "name": "data",
                     "isMut": true,
                     "isSigner": false
-                },
-                {
-                    "name": "systemProgram",
-                    "isMut": false,
-                    "isSigner": false
                 }
             ],
             "args": [
                 {
-                    "name": "reversedTxId",
-                    "type": {
-                        "array": [
-                            "u8",
-                            32
-                        ]
-                    }
-                },
-                {
-                    "name": "size",
+                    "name": "start",
                     "type": "u32"
                 },
                 {
@@ -810,17 +792,7 @@ export const programIdl = {
                     "isSigner": false
                 }
             ],
-            "args": [
-                {
-                    "name": "reversedTxId",
-                    "type": {
-                        "array": [
-                            "u8",
-                            32
-                        ]
-                    }
-                }
-            ]
+            "args": []
         }
     ],
     "accounts": [
@@ -1122,6 +1094,16 @@ export const programIdl = {
             "code": 6013,
             "name": "InvalidUserData",
             "msg": "Invalid user data account"
+        },
+        {
+            "code": 6014,
+            "name": "InvalidVout",
+            "msg": "Invalid vout of the output used"
+        },
+        {
+            "code": 6015,
+            "name": "InvalidAccountWritability",
+            "msg": "Account cannot be written to"
         }
     ],
     "metadata": {
