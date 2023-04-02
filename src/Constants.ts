@@ -11,7 +11,7 @@ export const GRACE_PERIOD = new BN(60*60); //1 hour
 export const SAFETY_FACTOR = new BN(2);
 export const CHAIN_SEND_SAFETY_FACTOR = new BN(2);
 
-//On-chain fee multiplier
+//On-chain fee multiplier PPM
 export const NETWORK_FEE_MULTIPLIER_PPM = new BN(1500000);
 
 //Solana
@@ -34,9 +34,3 @@ export const CHAIN_FEE_PPM = new BN(3000);
 
 export const CHAIN_MIN = new BN(10000);
 export const CHAIN_MAX = new BN(1000000);
-
-//Swap program
-export const STATE_SEED = "state";
-export const VAULT_SEED = "vault";
-export const USER_VAULT_SEED = "uservault";
-export const AUTHORITY_SEED = "authority";

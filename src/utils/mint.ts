@@ -3,7 +3,7 @@ dotenv.config();
 
 import {WBTC_ADDRESS} from "../Constants";
 import {getOrCreateAssociatedTokenAccount, mintTo} from "@solana/spl-token";
-import AnchorSigner from "../sol/AnchorSigner";
+import AnchorSigner from "../chains/solana/signer/AnchorSigner";
 import {PublicKey} from "@solana/web3.js";
 
 async function mint(amount: number, acc: PublicKey) {

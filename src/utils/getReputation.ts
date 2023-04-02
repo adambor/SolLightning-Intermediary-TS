@@ -1,14 +1,17 @@
 import * as dotenv from "dotenv";
 dotenv.config();
 
-import SwapProgram, {SwapUserVault} from "../sol/program/SwapProgram";
-import AnchorSigner from "../sol/AnchorSigner";
-
-
+import AnchorSigner from "../chains/solana/signer/AnchorSigner";
+import SolanaBtcRelay from "../chains/solana/btcrelay/SolanaBtcRelay";
+import SolanaSwapProgram from "../chains/solana/swaps/SolanaSwapProgram";
+import {WBTC_ADDRESS} from "../Constants";
 
 async function main() {
 
-    const data: any = await SwapProgram.account.userAccount.fetch(SwapUserVault(AnchorSigner.publicKey));
+    const btcRelay = new SolanaBtcRelay(AnchorSigner);
+    const swapContract = new SolanaSwapProgram(AnchorSigner, btcRelay);
+
+    const data: any = await swapContract.program.account.userAccount.fetch(swapContract.SwapUserVault(AnchorSigner.publicKey, WBTC_ADDRESS));
 
     console.log("LN:");
     console.log("   successes: "+data.successVolume[0].toString(10)+" ("+data.successCount[0].toString(10)+")");

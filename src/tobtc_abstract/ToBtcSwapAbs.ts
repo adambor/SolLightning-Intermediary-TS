@@ -3,20 +3,8 @@ import {PublicKey} from "@solana/web3.js";
 import {createHash} from "crypto";
 import * as bitcoin from "bitcoinjs-lib";
 import {BITCOIN_NETWORK} from "../Constants";
-
-export type ToBtcData = {
-    initializer: PublicKey,
-    intermediary: PublicKey,
-    token: PublicKey,
-    amount: BN,
-    paymentHash: string,
-    expiry: BN,
-
-    nonce: BN,
-    confirmations: number,
-    payOut: boolean,
-    kind: number
-};
+import SwapData from "../swaps/SwapData";
+import Lockable from "../Lockable";
 
 export enum ToBtcSwapState {
     NON_PAYABLE = -1,
@@ -26,7 +14,7 @@ export enum ToBtcSwapState {
     BTC_SENT = 3
 }
 
-export class ToBtcSwap implements StorageObject {
+export class ToBtcSwapAbs<T extends SwapData> extends Lockable implements StorageObject {
 
     state: ToBtcSwapState;
     readonly address: string;
@@ -37,13 +25,13 @@ export class ToBtcSwap implements StorageObject {
 
     txId: string;
 
-    offerer: PublicKey;
-    data: ToBtcData;
+    data: T;
 
     constructor(address: string, amount: BN, swapFee: BN, nonce: BN, preferedConfirmationTarget: number);
     constructor(obj: any);
 
     constructor(prOrObj: string | any, amount?: BN, swapFee?: BN, nonce?: BN, preferedConfirmationTarget?: number) {
+        super();
         if(typeof(prOrObj)==="string") {
             this.state = ToBtcSwapState.SAVED;
             this.address = prOrObj;
@@ -59,20 +47,8 @@ export class ToBtcSwap implements StorageObject {
             this.nonce = new BN(prOrObj.nonce);
             this.preferedConfirmationTarget = prOrObj.preferedConfirmationTarget;
 
-            if(prOrObj.offerer!=null) this.offerer = new PublicKey(prOrObj.offerer);
             if(prOrObj.data!=null) {
-                this.data = {
-                    initializer: prOrObj.data.initializer==null ? null : new PublicKey(prOrObj.data.initializer),
-                    intermediary: new PublicKey(prOrObj.data.intermediary),
-                    token: new PublicKey(prOrObj.data.token),
-                    amount: new BN(prOrObj.data.amount),
-                    paymentHash: prOrObj.data.paymentHash,
-                    expiry: new BN(prOrObj.data.expiry),
-                    nonce: new BN(prOrObj.data.nonce),
-                    confirmations: prOrObj.data.confirmations,
-                    payOut: prOrObj.data.payOut,
-                    kind: prOrObj.data.kind,
-                };
+                this.data = SwapData.deserialize<T>(prOrObj.data);
             }
             this.txId = prOrObj.txId;
         }
@@ -88,19 +64,7 @@ export class ToBtcSwap implements StorageObject {
             nonce: this.nonce.toString(10),
             preferedConfirmationTarget: this.preferedConfirmationTarget,
 
-            offerer: this.offerer==null ? null : this.offerer.toBase58(),
-            data: this.data==null ? null : {
-                initializer: this.data.initializer==null ? null : this.data.initializer.toBase58(),
-                intermediary: this.data.intermediary.toBase58(),
-                token: this.data.token.toBase58(),
-                amount: this.data.amount.toString(10),
-                paymentHash: this.data.paymentHash,
-                expiry: this.data.expiry.toString(10),
-                nonce: this.data.nonce.toString(10),
-                confirmations: this.data.confirmations,
-                payOut: this.data.payOut,
-                kind: this.data.kind,
-            },
+            data: this.data==null ? null : this.data.serialize(),
             txId: this.txId
         }
     }

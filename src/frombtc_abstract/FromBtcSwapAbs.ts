@@ -1,19 +1,9 @@
 import * as BN from "bn.js";
-import {PublicKey} from "@solana/web3.js";
 import * as bitcoin from "bitcoinjs-lib";
 import {BITCOIN_NETWORK} from "../Constants";
 import {createHash} from "crypto";
-
-export type FromBtcData = {
-    intermediary: PublicKey,
-    token: PublicKey,
-    amount: BN,
-    paymentHash: string,
-    expiry: BN,
-    kind: number,
-    confirmations: number,
-    payOut?: boolean
-};
+import SwapData from "../swaps/SwapData";
+import Lockable from "../Lockable";
 
 export enum FromBtcSwapState {
     CANCELED = -1,
@@ -21,7 +11,7 @@ export enum FromBtcSwapState {
     COMMITED = 1
 }
 
-export class FromBtcSwap implements StorageObject {
+export class FromBtcSwapAbs<T extends SwapData> extends Lockable implements StorageObject {
 
     state: FromBtcSwapState;
     readonly address: string;
@@ -29,13 +19,13 @@ export class FromBtcSwap implements StorageObject {
     readonly swapFee: BN;
     authorizationExpiry: BN;
 
-    data: FromBtcData;
-    secret: string;
+    data: T;
 
     constructor(address: string, amount: BN, swapFee: BN);
     constructor(obj: any);
 
     constructor(prOrObj: string | any, amount?: BN, swapFee?: BN) {
+        super();
         if(typeof(prOrObj)==="string") {
             this.state = FromBtcSwapState.CREATED;
             this.address = prOrObj;
@@ -48,18 +38,8 @@ export class FromBtcSwap implements StorageObject {
             this.swapFee = new BN(prOrObj.swapFee);
             this.authorizationExpiry = prOrObj.authorizationExpiry==null ? null : new BN(prOrObj.authorizationExpiry);
             if(prOrObj.data!=null) {
-                this.data = {
-                    intermediary: new PublicKey(prOrObj.data.intermediary),
-                    token: new PublicKey(prOrObj.data.token),
-                    amount: new BN(prOrObj.data.amount),
-                    paymentHash: prOrObj.data.paymentHash,
-                    expiry: new BN(prOrObj.data.expiry),
-                    kind: prOrObj.data.kind,
-                    confirmations: prOrObj.data.confirmations,
-                    payOut: prOrObj.data.payOut
-                };
+                this.data = SwapData.deserialize(prOrObj.data);
             }
-            this.secret = prOrObj.secret;
         }
     }
 
@@ -70,17 +50,7 @@ export class FromBtcSwap implements StorageObject {
             amount: this.amount.toString(10),
             swapFee: this.swapFee.toString(10),
             authorizationExpiry: this.authorizationExpiry==null ? null : this.authorizationExpiry.toString(10),
-            data: this.data==null ? null : {
-                intermediary: this.data.intermediary.toBase58(),
-                token: this.data.token.toBase58(),
-                amount: this.data.amount.toString(10),
-                paymentHash: this.data.paymentHash,
-                expiry: this.data.expiry.toString(10),
-                kind: this.data.kind,
-                confirmations: this.data.confirmations,
-                payOut: this.data.payOut
-            },
-            secret: this.secret
+            data: this.data==null ? null : this.data.serialize(),
         }
     }
 

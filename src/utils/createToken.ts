@@ -3,7 +3,7 @@ import * as dotenv from "dotenv";
 dotenv.config();
 
 import {createMint} from "@solana/spl-token";
-import AnchorSigner from "../sol/AnchorSigner";
+import AnchorSigner from "../chains/solana/signer/AnchorSigner";
 
 async function main() {
     const mint = await createMint(AnchorSigner.connection, AnchorSigner.signer, AnchorSigner.publicKey, null, 0);

@@ -1,8 +1,6 @@
 import StorageManager from "../StorageManager";
 import * as express from "express";
 import {Express} from "express";
-import {ToBtcData, ToBtcSwap, ToBtcSwapState} from "./ToBtcSwap";
-import SolEvents, {EventObject} from "../sol/SolEvents";
 import * as cors from "cors";
 import * as BN from "bn.js";
 import * as bitcoin from "bitcoinjs-lib";
@@ -16,33 +14,28 @@ import {
     CHAIN_SEND_SAFETY_FACTOR,
     GRACE_PERIOD,
     NETWORK_FEE_MULTIPLIER_PPM,
-    SAFETY_FACTOR,
-    WBTC_ADDRESS
+    SAFETY_FACTOR
 } from "../Constants";
 import * as lncli from "ln-service";
 import LND from "../btc/LND";
-import AnchorSigner from "../sol/AnchorSigner";
-import {PublicKey, SystemProgram, SYSVAR_INSTRUCTIONS_PUBKEY, Transaction} from "@solana/web3.js";
 import BtcRPC from "../btc/BtcRPC";
-import BtcRelay from "../btcrelay/BtcRelay";
-import BTCMerkleTree from "../btcrelay/BTCMerkleTree";
-import SwapProgram, {
-    getClaimInitSignature,
-    getEscrow,
-    getRefundSignature,
-    SwapEscrowState,
-    SwapTxData, SwapTxDataAlt,
-    SwapUserVault
-} from "../sol/program/SwapProgram";
-import {getAssociatedTokenAddressSync} from "@solana/spl-token";
-import {FromBtcLnData} from "../frombtcln/FromBtcLnSwap";
-import Nonce from "../sol/Nonce";
+import SwapData from "../swaps/SwapData";
+import {ToBtcSwapAbs, ToBtcSwapState} from "./ToBtcSwapAbs";
+import SwapContract from "../swaps/SwapContract";
+import SwapEvent from "../events/types/SwapEvent";
+import ClaimEvent from "../events/types/ClaimEvent";
+import RefundEvent from "../events/types/RefundEvent";
+import InitializeEvent from "../events/types/InitializeEvent";
+import SwapType from "../swaps/SwapType";
+import {TokenAddress} from "../swaps/TokenAddress";
+import SwapNonce from "../swaps/SwapNonce";
+import ChainEvents from "../events/ChainEvents";
 
 const TX_CHECK_INTERVAL = 10*1000;
 
 const MIN_ONCHAIN_END_CTLV = new BN(10);
 
-const MAX_CONFIRMATIONS = 12;
+const MAX_CONFIRMATIONS = 6;
 const MIN_CONFIRMATIONS = 2;
 
 const MAX_CONFIRMATION_TARGET = 6;
@@ -50,175 +43,42 @@ const MIN_CONFIRMATION_TARGET = 1;
 
 const OUTPUT_SCRIPT_MAX_LENGTH = 200;
 
-const SWAP_CHECK_INTERVAL = 10*1000;
+const SWAP_CHECK_INTERVAL = 1*60*1000;
 
-class ToBtc {
+class ToBtcAbs<T extends SwapData> {
 
-    storageManager: StorageManager<ToBtcSwap>;
+    storageManager: StorageManager<ToBtcSwapAbs<T>>;
     restPort: number;
     restServer: Express;
 
-    activeSubscriptions: {[txId: string]: ToBtcSwap} = {};
+    activeSubscriptions: {[txId: string]: ToBtcSwapAbs<T>} = {};
 
-    constructor(storageDirectory: string, restPort: number) {
-        this.storageManager = new StorageManager<ToBtcSwap>(storageDirectory);
+    readonly swapContract: SwapContract<T>;
+    readonly chainEvents: ChainEvents<T>;
+    readonly nonce: SwapNonce;
+    readonly WBTC_ADDRESS: TokenAddress;
+
+    constructor(storageDirectory: string, restPort: number, swapContract: SwapContract<T>, chainEvents: ChainEvents<T>, swapNonce: SwapNonce, WBTC_ADDRESS: TokenAddress) {
+        this.storageManager = new StorageManager<ToBtcSwapAbs<T>>(storageDirectory);
         this.restPort = restPort;
+        this.swapContract = swapContract;
+        this.chainEvents = chainEvents;
+        this.nonce = swapNonce;
+        this.WBTC_ADDRESS = WBTC_ADDRESS;
     }
 
-    async processPaymentResult(tx: {blockhash: string, confirmations: number, txid: string, hex: string}, payment: ToBtcSwap, vout: number): Promise<boolean> {
+    async processPaymentResult(tx: {blockhash: string, confirmations: number, txid: string, hex: string}, payment: ToBtcSwapAbs<T>, vout: number): Promise<boolean> {
+        //Set flag that we are sending the transaction already, so we don't end up with race condition
+        const unlock: () => boolean = payment.lock(this.swapContract.claimWithTxDataTimeout);
 
-        let blockheader;
-        try {
-            blockheader = await new Promise((resolve, reject) => {
-                BtcRPC.getBlockHeader(tx.blockhash, true, (err, info) => {
-                    if(err) {
-                        reject(err);
-                        return;
-                    }
-                    resolve(info.result);
-                });
-            });
-        } catch (e) {
-            console.error(e);
-        }
+        if(unlock==null) return false;
 
-        console.log("[To BTC: Solana.Claim] Blockheader fetched: ", blockheader);
+        const result = await this.swapContract.claimWithTxData(payment.data, tx, vout);
 
-        if(blockheader==null) return false;
+        unlock();
 
-        let commitedHeader;
-        try {
-            commitedHeader = await BtcRelay.retrieveBlockLog(blockheader.hash, blockheader.height+tx.confirmations-1);
-        } catch (e) {
-            console.error(e);
-        }
-
-        console.log("[To BTC: Solana.Claim] Commited header retrieved: ", commitedHeader);
-
-        if(commitedHeader==null) return false;
-
-        const merkleProof = await BTCMerkleTree.getTransactionMerkle(tx.txid, tx.blockhash);
-
-        console.log("[To BTC: Solana.Claim] Merkle proof computed: ", merkleProof);
-
-        const witnessRawTxBuffer: Buffer = Buffer.from(tx.hex, "hex");
-
-        const btcTx = bitcoin.Transaction.fromBuffer(witnessRawTxBuffer);
-
-        for(let txIn of btcTx.ins) {
-            txIn.witness = [];
-        }
-
-        const rawTxBuffer: Buffer = btcTx.toBuffer();
-
-        const writeData: Buffer = Buffer.concat([
-            Buffer.from(new BN(vout).toArray("le", 4)),
-            rawTxBuffer
-        ]);
-
-        console.log("[To BTC: Solana.Claim] Writing transaction data: ", writeData.toString("hex"));
-
-        const txDataKey = SwapTxDataAlt(merkleProof.reversedTxId, AnchorSigner.signer);
-
-        try {
-            const fetchedDataAccount = await SwapProgram.account.data.fetch(txDataKey.publicKey);
-            console.log("[To BTC: Solana.Claim] Will erase previous data account");
-            const eraseTx = await SwapProgram.methods
-                .closeData()
-                .accounts({
-                    signer: AnchorSigner.wallet.publicKey,
-                    data: txDataKey.publicKey
-                })
-                .signers([AnchorSigner.signer])
-                .transaction();
-
-            const signature = await AnchorSigner.sendAndConfirm(eraseTx, [AnchorSigner.signer]);
-            console.log("[To BTC: Solana.Claim] Previous data account erased: ", signature);
-        } catch (e) {}
-
-        {
-            const dataSize = writeData.length;
-            const accountSize = 32+dataSize;
-            const lamports = await AnchorSigner.connection.getMinimumBalanceForRentExemption(accountSize);
-
-            const accIx = SystemProgram.createAccount({
-                fromPubkey: AnchorSigner.publicKey,
-                newAccountPubkey: txDataKey.publicKey,
-                lamports,
-                space: accountSize,
-                programId: SwapProgram.programId
-            });
-
-            const initIx = await SwapProgram.methods
-                .initData()
-                .accounts({
-                    signer: AnchorSigner.wallet.publicKey,
-                    data: txDataKey.publicKey
-                })
-                .signers([AnchorSigner.signer, txDataKey])
-                .instruction();
-
-            const initTx = new Transaction();
-            initTx.add(accIx);
-            initTx.add(initIx);
-
-            const signature = await AnchorSigner.sendAndConfirm(initTx, [AnchorSigner.signer, txDataKey]);
-            console.log("[To BTC: Solana.Claim] New data account initialized: ", signature);
-        }
-
-        let pointer = 0;
-        while(pointer<writeData.length) {
-            const writeLen = Math.min(writeData.length-pointer, 950);
-
-            const writeTx = await SwapProgram.methods
-                .writeData(pointer, writeData.slice(pointer, writeLen))
-                .accounts({
-                    signer: AnchorSigner.signer.publicKey,
-                    data: txDataKey.publicKey
-                })
-                .signers([AnchorSigner.signer])
-                .transaction();
-
-            const signature = await AnchorSigner.sendAndConfirm(writeTx, [AnchorSigner.signer]);
-
-            console.log("[To BTC: Solana.Claim] Write partial tx data ("+pointer+" .. "+(pointer+writeLen)+")/"+writeData.length+": ", signature);
-
-            pointer += writeLen;
-        }
-
-        console.log("[To BTC: Solana.Claim] Tx data written");
-
-        const verifyIx = await BtcRelay.createVerifyIx(AnchorSigner.signer, merkleProof.reversedTxId, payment.data.confirmations, merkleProof.pos, merkleProof.merkle, commitedHeader);
-        const claimIx = await SwapProgram.methods
-            .claimerClaimWithExtData()
-            .accounts({
-                signer: AnchorSigner.wallet.publicKey,
-                claimer: AnchorSigner.wallet.publicKey,
-                offerer: payment.offerer,
-                initializer: payment.data.initializer,
-                data: txDataKey.publicKey,
-                userData: SwapUserVault(AnchorSigner.wallet.publicKey),
-                escrowState: SwapEscrowState(Buffer.from(payment.data.paymentHash, "hex")),
-                systemProgram: SystemProgram.programId,
-                ixSysvar: SYSVAR_INSTRUCTIONS_PUBKEY
-            })
-            .signers([AnchorSigner.signer])
-            .instruction();
-
-        const solanaTx = new Transaction();
-        solanaTx.add(verifyIx);
-        solanaTx.add(claimIx);
-        solanaTx.feePayer = AnchorSigner.wallet.publicKey;
-        solanaTx.recentBlockhash = (await AnchorSigner.connection.getRecentBlockhash()).blockhash;
-
-        const signature = await AnchorSigner.sendAndConfirm(solanaTx, [AnchorSigner.signer]);
-        console.log("[To BTC: Solana.Claim] Transaction confirmed: ", signature);
-
-        await this.storageManager.removeData(payment.getHash());
-
-        return true;
+        return result;
     }
-
 
     async checkPastSwaps() {
 
@@ -232,7 +92,7 @@ class ToBtc {
             }
 
             if(payment.state===ToBtcSwapState.NON_PAYABLE) {
-                if(payment.data.expiry.lt(new BN(Math.floor(Date.now()/1000)))) {
+                if(payment.data.getExpiry().lt(new BN(Math.floor(Date.now()/1000)))) {
                     //Expired
                     await this.storageManager.removeData(payment.getHash());
                     continue;
@@ -240,7 +100,7 @@ class ToBtc {
             }
 
             if(payment.state===ToBtcSwapState.COMMITED || payment.state===ToBtcSwapState.BTC_SENDING || payment.state===ToBtcSwapState.BTC_SENT) {
-                await this.processInitialized(payment, payment.offerer, payment.data);
+                await this.processInitialized(payment, payment.data);
                 continue;
             }
 
@@ -251,7 +111,7 @@ class ToBtc {
     async checkBtcTxs() {
 
         for(let txId in this.activeSubscriptions) {
-            const payment: ToBtcSwap = this.activeSubscriptions[txId];
+            const payment: ToBtcSwapAbs<T> = this.activeSubscriptions[txId];
             let tx;
             try {
                 tx = await new Promise((resolve, reject) => {
@@ -273,7 +133,7 @@ class ToBtc {
 
             if(tx.confirmations==null) tx.confirmations = 0;
 
-            if(tx.confirmations<payment.data.confirmations) {
+            if(tx.confirmations<payment.data.getConfirmations()) {
                 //not enough confirmations
                 continue;
             }
@@ -302,7 +162,7 @@ class ToBtc {
         this.activeSubscriptions[payment.txId] = payment;
     }
 
-    async processInitialized(payment: ToBtcSwap, offerer: PublicKey, data: ToBtcData) {
+    async processInitialized(payment: ToBtcSwapAbs<T>, data: T) {
 
         if(payment.state===ToBtcSwapState.BTC_SENDING) {
             //Payment was signed (maybe also sent)
@@ -332,22 +192,18 @@ class ToBtc {
 
         const setNonPayableAndSave = async() => {
             payment.state = ToBtcSwapState.NON_PAYABLE;
-            payment.offerer = offerer;
             payment.data = data;
             await this.storageManager.saveData(payment.getHash(), payment);
         };
 
         if(payment.state===ToBtcSwapState.SAVED) {
-            const tokenAddress = data.token;
-
-            if(!tokenAddress.equals(WBTC_ADDRESS)) {
+            if(!data.isToken(this.WBTC_ADDRESS)) {
                 console.error("[To BTC: Solana.Initialize] Invalid token used");
                 await setNonPayableAndSave();
                 return;
             }
 
             payment.state = ToBtcSwapState.COMMITED;
-            payment.offerer = offerer;
             payment.data = data;
             await this.storageManager.saveData(payment.getHash(), payment);
         }
@@ -356,9 +212,9 @@ class ToBtc {
             console.log("[To BTC: Solana.Initialize] Struct: ", data);
 
             const currentTimestamp = new BN(Math.floor(Date.now()/1000));
-            const tsDelta = payment.data.expiry.sub(currentTimestamp);
+            const tsDelta = payment.data.getExpiry().sub(currentTimestamp);
 
-            const minRequiredCLTV = ToBtc.getExpiryFromCLTV(payment.preferedConfirmationTarget, payment.data.confirmations);
+            const minRequiredCLTV = ToBtcAbs.getExpiryFromCLTV(payment.preferedConfirmationTarget, payment.data.getConfirmations());
 
             if(tsDelta.lt(minRequiredCLTV)) {
                 console.error("[To BTC: Solana.Initialize] TS delta too low, required: "+minRequiredCLTV.toString(10)+" has: "+tsDelta.toString(10));
@@ -366,7 +222,7 @@ class ToBtc {
                 return;
             }
 
-            const maxNetworkFee = payment.data.amount.sub(payment.amount).sub(payment.swapFee);
+            const maxNetworkFee = payment.data.getAmount().sub(payment.amount).sub(payment.swapFee);
 
             let fundPsbtResponse;
             try {
@@ -394,7 +250,7 @@ class ToBtc {
             let psbt = bitcoin.Psbt.fromHex(fundPsbtResponse.psbt);
 
             //Apply nonce
-            const nonceBN = data.nonce;
+            const nonceBN = data.getEscrowNonce();
             const nonceBuffer = Buffer.from(nonceBN.toArray("be", 8));
 
             const locktimeBN = new BN(nonceBuffer.slice(0, 5), "be");
@@ -463,7 +319,6 @@ class ToBtc {
             const txId = tx.getId();
 
             payment.state = ToBtcSwapState.BTC_SENDING;
-            payment.offerer = offerer;
             payment.data = data;
             payment.txId = txId;
             await this.storageManager.saveData(payment.getHash(), payment);
@@ -494,84 +349,31 @@ class ToBtc {
 
     }
 
-    async processEvent(eventData: EventObject): Promise<boolean> {
-        const {events, instructions} = eventData;
-
-        const initializeLogMap = {};
-
-        for(let event of events) {
-            if(event.name==="InitializeEvent") {
-                const hashBuffer = Buffer.from(event.data.hash);
-                initializeLogMap[hashBuffer.toString("hex")] = {
-                    nonce: event.data.nonce
-                };
-            }
-
-            if(event.name==="ClaimEvent") {
-                const paymentHashBuffer = Buffer.from(event.data.hash);
-                const paymentHash = paymentHashBuffer.toString("hex");
-
-                const savedInvoice = this.storageManager.data[paymentHash];
-
-                if(savedInvoice==null) {
-                    console.error("[To BTC: Solana.ClaimEvent] No invoice submitted");
+    async processEvent(eventData: SwapEvent<T>[]): Promise<boolean> {
+        for(let event of eventData) {
+            if(event instanceof InitializeEvent) {
+                if(!this.swapContract.areWeClaimer(event.swapData)) {
                     continue;
                 }
 
-                console.log("[To BTC: Solana.ClaimEvent] Transaction confirmed! Event: ", event);
-
-                await this.storageManager.removeData(paymentHashBuffer);
-            }
-
-            if(event.name==="RefundEvent") {
-                const paymentHashBuffer = Buffer.from(event.data.hash);
-                const paymentHash = paymentHashBuffer.toString("hex");
-
-                const savedInvoice = this.storageManager.data[paymentHash];
-
-                if(savedInvoice==null) {
-                    console.error("[To BTC: Solana.RefundEvent] No invoice submitted");
-                    continue;
-                }
-
-                console.log("[To BTC: Solana.RefundEvent] Transaction refunded! Event: ", event);
-
-                await this.storageManager.removeData(paymentHashBuffer);
-            }
-        }
-
-        for(let ix of instructions) {
-            if (ix == null) continue;
-
-            if (
-                (ix.name === "offererInitializePayIn" || ix.name === "offererInitialize") &&
-                ix.accounts.claimer.equals(AnchorSigner.wallet.publicKey)
-            ) {
-                if(ix.data.kind!==2) {
+                if(event.swapData.getType()!==SwapType.CHAIN_NONCED) {
                     //Only process nonced on-chain requests
                     continue;
                 }
 
-                if(ix.data.payOut) {
+                if(event.swapData.isPayOut()) {
                     //Only process requests that don't payout from the program
                     continue;
                 }
 
-                if(ix.name === "offererInitializePayIn") {
-                    const usedNonce = ix.data.nonce.toNumber();
-                    if (usedNonce > Nonce.getClaimNonce()) {
-                        await Nonce.saveClaimNonce(usedNonce);
+                if(event.swapData.isPayIn()) {
+                    const usedNonce = event.signatureNonce;
+                    if (usedNonce > this.nonce.getClaimNonce()) {
+                        await this.nonce.saveClaimNonce(usedNonce);
                     }
                 }
 
-                const ourAta = getAssociatedTokenAddressSync(ix.accounts.mint, AnchorSigner.wallet.publicKey);
-
-                if(!ix.accounts.claimerTokenAccount.equals(ourAta)) {
-                    //Invalid ATA specified as our ATA
-                    continue;
-                }
-
-                const paymentHash = Buffer.from(ix.data.hash).toString("hex");
+                const paymentHash = event.swapData.getHash();
 
                 console.log("[To BTC: Solana.Initialize] Payment hash: ", paymentHash);
 
@@ -584,34 +386,43 @@ class ToBtc {
 
                 console.log("[To BTC: Solana.Initialize] SOL request submitted");
 
-                let offerer;
-                if(ix.name === "offererInitializePayIn") {
-                    offerer = ix.accounts.initializer;
-                } else {
-                    offerer = ix.accounts.offerer;
-                }
+                await this.processInitialized(savedInvoice, event.swapData);
 
-                const log = initializeLogMap[paymentHash];
+                continue;
+            }
+            if(event instanceof ClaimEvent) {
+                const paymentHash = event.paymentHash;
+                const paymentHashBuffer = Buffer.from(event.paymentHash, "hex");
 
-                if(log==null) {
-                    console.error("[To BTC: Solana.Initialize] Corresponding log not found");
+                const savedInvoice = this.storageManager.data[paymentHash];
+
+                if(savedInvoice==null) {
+                    console.error("[To BTC: Solana.ClaimEvent] No invoice submitted");
                     continue;
                 }
 
-                console.log("[To BTC: Solana.Initialize] Processing swap id: ", paymentHash);
+                console.log("[To BTC: Solana.ClaimEvent] Transaction confirmed! Event: ", event);
 
-                await this.processInitialized(savedInvoice, offerer, {
-                    initializer: ix.accounts.initializer,
-                    intermediary: ix.accounts.claimer,
-                    token: ix.accounts.mint,
-                    confirmations: ix.data.confirmations,
-                    amount: new BN(ix.data.initializerAmount.toString(10)),
-                    paymentHash: paymentHash,
-                    expiry: new BN(ix.data.expiry.toString(10)),
-                    nonce: new BN(log.nonce),
-                    payOut: ix.data.payOut,
-                    kind: ix.data.kind
-                });
+                await this.storageManager.removeData(paymentHashBuffer);
+
+                continue;
+            }
+            if(event instanceof RefundEvent) {
+                const paymentHash = event.paymentHash;
+                const paymentHashBuffer = Buffer.from(event.paymentHash, "hex");
+
+                const savedInvoice = this.storageManager.data[paymentHash];
+
+                if(savedInvoice==null) {
+                    console.error("[To BTC: Solana.RefundEvent] No invoice submitted");
+                    continue;
+                }
+
+                console.log("[To BTC: Solana.RefundEvent] Transaction refunded! Event: ", event);
+
+                await this.storageManager.removeData(paymentHashBuffer);
+
+                continue;
             }
         }
 
@@ -766,7 +577,7 @@ class ToBtc {
                 return;
             }
 
-            const expirySeconds = ToBtc.getExpiryFromCLTV(req.body.confirmationTarget, req.body.confirmations).add(new BN(GRACE_PERIOD)); //Add grace period another time, so the user has 1 hour to commit
+            const expirySeconds = ToBtcAbs.getExpiryFromCLTV(req.body.confirmationTarget, req.body.confirmations).add(new BN(GRACE_PERIOD)); //Add grace period another time, so the user has 1 hour to commit
 
             let chainFeeResp;
             try {
@@ -806,7 +617,7 @@ class ToBtc {
 
             const swapFee = CHAIN_BASE_FEE.add(amountBD.mul(CHAIN_FEE_PPM).div(new BN(1000000)));
 
-            const createdSwap = new ToBtcSwap(req.body.address, amountBD, swapFee, nonce, req.body.confirmationTarget);
+            const createdSwap = new ToBtcSwapAbs<T>(req.body.address, amountBD, swapFee, nonce, req.body.confirmationTarget);
             const paymentHash = createdSwap.getHash();
 
             const total = amountBD.add(swapFee).add(networkFeeAdjusted);
@@ -814,30 +625,30 @@ class ToBtc {
             const currentTimestamp = new BN(Math.floor(Date.now()/1000));
             const minRequiredExpiry = currentTimestamp.add(expirySeconds);
 
-            const payObject: ToBtcData = {
-                intermediary: AnchorSigner.publicKey,
-                token: WBTC_ADDRESS,
-                amount: total,
-                paymentHash: createdSwap.getHash().toString("hex"),
-                expiry: minRequiredExpiry,
-                nonce: nonce,
-                initializer: null,
-                confirmations: req.body.confirmations,
-                payOut: false,
-                kind: 2
-            };
+            const payObject: T = this.swapContract.createSwapData(
+                SwapType.CHAIN_NONCED,
+                null,
+                this.swapContract.getAddress(),
+                this.WBTC_ADDRESS,
+                total,
+                createdSwap.getHash().toString("hex"),
+                minRequiredExpiry,
+                nonce,
+                req.body.confirmations,
+                false
+            );
 
             createdSwap.data = payObject;
 
             await this.storageManager.saveData(paymentHash, createdSwap);
 
-            const sigData = getClaimInitSignature(payObject);
+            const sigData = await this.swapContract.getClaimInitSignature(payObject, this.nonce);
 
             res.status(200).json({
                 code: 20000,
                 msg: "Success",
                 data: {
-                    address: AnchorSigner.wallet.publicKey,
+                    address: this.swapContract.getAddress(),
                     networkFee: networkFeeAdjusted.toString(10),
                     satsPervByte: feeSatsPervByteAdjusted.toString(10),
                     swapFee: swapFee.toString(10),
@@ -845,7 +656,7 @@ class ToBtc {
                     total: total.toString(10),
                     minRequiredExpiry: minRequiredExpiry.toString(),
 
-                    data: createdSwap.serialize().data,
+                    data: payObject.serialize(),
 
                     nonce: sigData.nonce,
                     prefix: sigData.prefix,
@@ -905,9 +716,9 @@ class ToBtc {
                 if (payment.state === ToBtcSwapState.NON_PAYABLE) {
                     const hash = Buffer.from(req.body.paymentHash, "hex");
 
-                    const escrowState = await getEscrow(hash);
+                    const isCommited = await this.swapContract.isCommited(payment.data);
 
-                    if (escrowState == null) {
+                    if (!isCommited) {
                         res.status(400).json({
                             code: 20005,
                             msg: "Not committed"
@@ -915,13 +726,13 @@ class ToBtc {
                         return;
                     }
 
-                    const refundResponse = getRefundSignature(escrowState);
+                    const refundResponse = await this.swapContract.getRefundSignature(payment.data);
 
                     res.status(200).json({
                         code: 20000,
                         msg: "Success",
                         data: {
-                            address: AnchorSigner.signer.publicKey,
+                            address: this.swapContract.getAddress(),
                             prefix: refundResponse.prefix,
                             timeout: refundResponse.timeout,
                             signature: refundResponse.signature
@@ -948,7 +759,7 @@ class ToBtc {
     }
 
     subscribeToEvents() {
-        SolEvents.registerListener(this.processEvent.bind(this));
+        this.chainEvents.registerListener(this.processEvent.bind(this));
 
         console.log("[To BTC: Solana.Events] Subscribed to Solana events");
     }
@@ -977,10 +788,10 @@ class ToBtc {
     }
 
     async init() {
-        await this.storageManager.loadData(ToBtcSwap);
+        await this.storageManager.loadData(ToBtcSwapAbs);
         this.subscribeToEvents();
     }
 
 }
 
-export default ToBtc;
+export default ToBtcAbs;

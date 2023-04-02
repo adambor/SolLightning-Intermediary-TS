@@ -1,55 +1,60 @@
 import * as cors from "cors";
 import * as BN from "bn.js";
-import * as bitcoin from "bitcoinjs-lib";
 import * as lncli from "ln-service";
 import LND from "../btc/LND";
 import StorageManager from "../StorageManager";
-import {FromBtcLnSwap, FromBtcLnSwapState} from "../frombtcln/FromBtcLnSwap";
-import {Express} from "express";
 import * as express from "express";
-import SolEvents, {EventObject} from "../sol/SolEvents";
-import {PublicKey} from "@solana/web3.js";
+import {Express} from "express";
 import {
     BITCOIN_BLOCKTIME,
-    BITCOIN_NETWORK,
     CHAIN_BASE_FEE,
     CHAIN_FEE_PPM,
     CHAIN_MAX,
-    CHAIN_MIN, GRACE_PERIOD, MAX_SOL_SKEW, SAFETY_FACTOR,
-    WBTC_ADDRESS
+    CHAIN_MIN,
+    MAX_SOL_SKEW,
+    SAFETY_FACTOR
 } from "../Constants";
-import SwapProgram, {getEscrow, getInitSignature, SwapEscrowState, SwapUserVault} from "../sol/program/SwapProgram";
-import AnchorSigner from "../sol/AnchorSigner";
-import BtcAtomicSwap from "../btc/BtcAtomicSwap";
-import {pay} from "lightning";
-import BtcRPC from "../btc/BtcRPC";
-import {FromBtcData, FromBtcSwap, FromBtcSwapState} from "./FromBtcSwap";
-import Nonce from "../sol/Nonce";
-import {createHash} from "crypto";
-import * as bolt11 from "bolt11";
+import SwapData from "../swaps/SwapData";
+import {FromBtcSwapAbs, FromBtcSwapState} from "./FromBtcSwapAbs";
+import SwapContract from "../swaps/SwapContract";
+import ChainEvents from "../events/ChainEvents";
+import SwapNonce from "../swaps/SwapNonce";
+import {TokenAddress} from "../swaps/TokenAddress";
+import SwapEvent from "../events/types/SwapEvent";
+import InitializeEvent from "../events/types/InitializeEvent";
+import SwapType from "../swaps/SwapType";
+import ClaimEvent from "../events/types/ClaimEvent";
+import RefundEvent from "../events/types/RefundEvent";
 
-const HEX_REGEX = /[0-9a-fA-F]+/;
-
-const CONFIRMATIONS = 2;
+const CONFIRMATIONS = 1;
 const SWAP_CSV_DELTA = 144; //A day
 
-const REFUND_CHECK_INTERVAL = 15*60*1000;
+const REFUND_CHECK_INTERVAL = 5*60*1000;
 
-class FromBtc {
+class FromBtcAbs<T extends SwapData> {
 
-    storageManager: StorageManager<FromBtcSwap>;
+    storageManager: StorageManager<FromBtcSwapAbs<T>>;
     restPort: number;
     restServer: Express;
 
-    constructor(storageDirectory: string, restPort: number) {
-        this.storageManager = new StorageManager<FromBtcSwap>(storageDirectory);
+    readonly swapContract: SwapContract<T>;
+    readonly chainEvents: ChainEvents<T>;
+    readonly nonce: SwapNonce;
+    readonly WBTC_ADDRESS: TokenAddress;
+
+    constructor(storageDirectory: string, restPort: number, swapContract: SwapContract<T>, chainEvents: ChainEvents<T>, swapNonce: SwapNonce, WBTC_ADDRESS: TokenAddress) {
+        this.storageManager = new StorageManager<FromBtcSwapAbs<T>>(storageDirectory);
         this.restPort = restPort;
+        this.swapContract = swapContract;
+        this.chainEvents = chainEvents;
+        this.nonce = swapNonce;
+        this.WBTC_ADDRESS = WBTC_ADDRESS;
     }
 
     async checkPastSwaps() {
 
         const removeSwaps: Buffer[] = [];
-        const refundSwaps: FromBtcSwap[] = [];
+        const refundSwaps: FromBtcSwapAbs<T>[] = [];
 
         for(let key in this.storageManager.data) {
             const swap = this.storageManager.data[key];
@@ -64,26 +69,13 @@ class FromBtc {
                 continue;
             }
 
-            const expiryTime = swap.data.expiry;
+            const expiryTime = swap.data.getExpiry();
             if(swap.state===FromBtcSwapState.COMMITED) {
                 if(expiryTime.lt(currentTime)) {
-                    const paymentHash = Buffer.from(swap.data.paymentHash, "hex");
+                    const isCommited = await this.swapContract.isCommited(swap.data);
 
-                    try {
-                        const account = await getEscrow(paymentHash);
-                        if(account!=null) {
-                            if(
-                                account.offerer.equals(AnchorSigner.wallet.publicKey) &&
-                                new BN(account.expiry.toString(10)).eq(swap.data.expiry) &&
-                                new BN(account.initializerAmount.toString(10)).eq(swap.data.amount) &&
-                                account.mint.equals(swap.data.token)
-                            ) {
-                                refundSwaps.push(swap);
-                                continue;
-                            }
-                        }
-                    } catch (e) {
-                        console.error(e);
+                    if(isCommited) {
+                        refundSwaps.push(swap);
                     }
                 }
             }
@@ -94,46 +86,55 @@ class FromBtc {
         }
 
         for(let refundSwap of refundSwaps) {
-
-            let builder = SwapProgram.methods
-                .offererRefund()
-                .accounts({
-                    offerer: AnchorSigner.wallet.publicKey,
-                    initializer: refundSwap.data.intermediary,
-                    userData: SwapUserVault(AnchorSigner.wallet.publicKey),
-                    escrowState: SwapEscrowState(Buffer.from(refundSwap.data.paymentHash, "hex"))
-                })
-
-            if(!refundSwap.data.payOut) {
-                builder = builder.remainingAccounts([
-                    {
-                        isSigner: false,
-                        isWritable: true,
-                        pubkey: SwapUserVault(refundSwap.data.intermediary)
-                    }
-                ])
-            }
-
-            const result = await builder
-                .signers([AnchorSigner.signer])
-                .transaction();
-
-            const signature = await AnchorSigner.sendAndConfirm(result, [AnchorSigner.signer]);
-
-            console.log("[From BTC: Solana.Refund] Transaction confirmed! Signature: ", signature);
-
+            const unlock = refundSwap.lock(this.swapContract.refundTimeout);
+            if(unlock==null) continue;
+            await this.swapContract.refund(refundSwap.data);
+            unlock();
         }
     }
 
-    async processEvent(eventData: EventObject): Promise<boolean> {
-        const {events, instructions} = eventData;
+    async processEvent(eventData: SwapEvent<T>[]): Promise<boolean> {
 
-        for(let event of events) {
-            if(event.name==="ClaimEvent") {
-                //Claim
-                const paymentHash: Buffer = Buffer.from(event.data.hash);
+        for(let event of eventData) {
 
-                const paymentHashHex = paymentHash.toString("hex");
+            if(event instanceof InitializeEvent) {
+                if (!this.swapContract.areWeOfferer(event.swapData)) {
+                    continue;
+                }
+
+                if (event.swapData.isPayIn()) {
+                    //Only process requests that don't pay in from the program
+                    continue;
+                }
+
+                if (event.swapData.getType() !== SwapType.CHAIN) {
+                    //Only process nonced on-chain requests
+                    continue;
+                }
+
+                const paymentHash = event.paymentHash;
+                const paymentHashBuffer = Buffer.from(paymentHash, "hex");
+                const savedSwap = this.storageManager.data[paymentHash];
+
+                if (savedSwap != null) {
+                    savedSwap.state = FromBtcSwapState.COMMITED;
+                }
+
+                const usedNonce = event.signatureNonce;
+                if (usedNonce > this.nonce.getNonce()) {
+                    await this.nonce.saveNonce(usedNonce);
+                }
+
+                if (savedSwap != null) {
+                    savedSwap.data = event.swapData;
+                    await this.storageManager.saveData(paymentHashBuffer, savedSwap);
+                }
+
+                continue;
+            }
+            if(event instanceof ClaimEvent) {
+                const paymentHashHex = event.paymentHash;
+                const paymentHash: Buffer = Buffer.from(paymentHashHex, "hex");
 
                 const savedSwap = this.storageManager.data[paymentHashHex];
 
@@ -143,35 +144,11 @@ class FromBtc {
 
                 console.log("[From BTC: Solana.ClaimEvent] Swap claimed by claimer: ", paymentHashHex);
                 await this.storageManager.removeData(paymentHash);
+
+                continue;
             }
-        }
-
-        for(let ix of instructions) {
-            if (ix == null) continue;
-
-            if (
-                ix.name === "offererInitialize" &&
-                ix.accounts.offerer.equals(AnchorSigner.wallet.publicKey)
-            ) {
-                //Increment nonce
-                const paymentHashBuffer = Buffer.from(ix.data.hash);
-                const paymentHash = paymentHashBuffer.toString("hex");
-                const savedSwap = this.storageManager.data[paymentHash];
-
-                if (savedSwap != null) {
-                    savedSwap.state = FromBtcSwapState.COMMITED;
-                }
-
-                const usedNonce = ix.data.nonce.toNumber();
-                if (usedNonce > Nonce.getNonce()) {
-                    await Nonce.saveNonce(usedNonce);
-                }
-
-                if (savedSwap != null) {
-                    savedSwap.data.payOut = ix.data.payOut;
-                    await this.storageManager.saveData(paymentHashBuffer, savedSwap);
-                }
-
+            if(event instanceof RefundEvent) {
+                continue;
             }
         }
 
@@ -202,7 +179,7 @@ class FromBtc {
             }
 
             try {
-                if(!PublicKey.isOnCurve(req.body.address)) {
+                if(!this.swapContract.isValidAddress(req.body.address)) {
                     res.status(400).json({
                         msg: "Invalid request body (address)"
                     });
@@ -249,8 +226,7 @@ class FromBtc {
                 return;
             }
 
-            const tokenAccount: any = await SwapProgram.account.userAccount.fetch(SwapUserVault(AnchorSigner.wallet.publicKey));
-            const balance = new BN(tokenAccount.amount.toString(10));
+            const balance = await this.swapContract.getBalance(this.WBTC_ADDRESS);
 
             if(amountBD.gt(balance)) {
                 res.status(400).json({
@@ -268,26 +244,29 @@ class FromBtc {
 
             console.log("[From BTC: REST.CreateInvoice] Created receiving address: ", receiveAddress);
 
-            const createdSwap = new FromBtcSwap(receiveAddress, amountBD, swapFee);
+            const createdSwap: FromBtcSwapAbs<T> = new FromBtcSwapAbs<T>(receiveAddress, amountBD, swapFee);
 
             const paymentHash = createdSwap.getHash();
 
             const currentTimestamp = new BN(Math.floor(Date.now()/1000));
             const expiryTimeout = new BN(SWAP_CSV_DELTA).mul(BITCOIN_BLOCKTIME.div(SAFETY_FACTOR));
 
-            const data: FromBtcData = {
-                intermediary: new PublicKey(req.body.address),
-                token: WBTC_ADDRESS,
-                amount: amountBD.sub(swapFee),
-                paymentHash: paymentHash.toString("hex"),
-                expiry: currentTimestamp.add(expiryTimeout),
-                kind: 1,
-                confirmations: CONFIRMATIONS
-            };
+            const data: T = this.swapContract.createSwapData(
+                SwapType.CHAIN,
+                this.swapContract.getAddress(),
+                req.body.address,
+                this.WBTC_ADDRESS,
+                amountBD.sub(swapFee),
+                paymentHash.toString("hex"),
+                currentTimestamp.add(expiryTimeout),
+                new BN(0),
+                CONFIRMATIONS,
+                null
+            );
 
             createdSwap.data = data;
 
-            const sigData = await getInitSignature(data);
+            const sigData = await this.swapContract.getInitSignature(data, this.nonce);
 
             createdSwap.authorizationExpiry = new BN(sigData.timeout);
 
@@ -298,8 +277,8 @@ class FromBtc {
                 msg: "Success",
                 data: {
                     btcAddress: receiveAddress,
-                    address: AnchorSigner.wallet.publicKey.toBase58(),
-                    data: createdSwap.serialize().data,
+                    address: this.swapContract.getAddress(),
+                    data: data.serialize(),
                     nonce: sigData.nonce,
                     prefix: sigData.prefix,
                     timeout: sigData.timeout,
@@ -315,7 +294,7 @@ class FromBtc {
     }
 
     subscribeToEvents() {
-        SolEvents.registerListener(this.processEvent.bind(this));
+        this.chainEvents.registerListener(this.processEvent.bind(this));
 
         console.log("[From BTC: Solana.Events] Subscribed to Solana events");
     }
@@ -330,9 +309,9 @@ class FromBtc {
     }
 
     async init() {
-        await this.storageManager.loadData(FromBtcSwap);
+        await this.storageManager.loadData(FromBtcSwapAbs);
         this.subscribeToEvents();
     }
 }
 
-export default FromBtc;
+export default FromBtcAbs;

@@ -1,7 +1,7 @@
 import * as dotenv from "dotenv";
 dotenv.config();
 
-import AnchorSigner from "../sol/AnchorSigner";
+import AnchorSigner from "../chains/solana/signer/AnchorSigner";
 
 async function main() {
 
