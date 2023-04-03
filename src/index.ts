@@ -13,6 +13,7 @@ import ToBtcLnAbs from "./tobtcln_abstract/ToBtcLnAbs";
 import SolanaSwapData from "./chains/solana/swaps/SolanaSwapData";
 import FromBtcAbs from "./frombtc_abstract/FromBtcAbs";
 import FromBtcLnAbs from "./frombtcln_abstract/FromBtcLnAbs";
+import SwapHandler from "./swaps/SwapHandler";
 
 async function main() {
 
@@ -26,63 +27,41 @@ async function main() {
     await nonce.init();
 
     const btcRelay = new SolanaBtcRelay(AnchorSigner);
-    const swapContract = new SolanaSwapProgram(AnchorSigner, btcRelay);
+    const swapContract = new SolanaSwapProgram(AnchorSigner, btcRelay, directory+"/solaccounts");
     const chainEvents = new SolanaChainEvents(directory, AnchorSigner, swapContract);
 
-    const toBtc = new ToBtcAbs<SolanaSwapData>(directory+"/tobtc", process.env.TO_BTC_PORT==null ? 4003 : parseInt(process.env.TO_BTC_PORT), swapContract, chainEvents, nonce, WBTC_ADDRESS);
-    await toBtc.init();
+    await swapContract.init();
 
-    const fromBtc = new FromBtcAbs<SolanaSwapData>(directory+"/frombtc", process.env.FROM_BTC_PORT==null ? 4002 : parseInt(process.env.FROM_BTC_PORT), swapContract, chainEvents, nonce, WBTC_ADDRESS);
-    await fromBtc.init();
+    const swapHandlers: SwapHandler[] = [];
 
-    const toBtcLn = new ToBtcLnAbs<SolanaSwapData>(directory+"/tobtcln", process.env.TO_BTCLN_PORT==null ? 4001 : parseInt(process.env.TO_BTCLN_PORT), swapContract, chainEvents, nonce, WBTC_ADDRESS);
-    await toBtcLn.init();
+    swapHandlers.push(
+        new ToBtcAbs<SolanaSwapData>(directory+"/tobtc", process.env.TO_BTC_PORT==null ? 4003 : parseInt(process.env.TO_BTC_PORT), swapContract, chainEvents, nonce, WBTC_ADDRESS)
+    );
+    swapHandlers.push(
+        new FromBtcAbs<SolanaSwapData>(directory+"/frombtc", process.env.FROM_BTC_PORT==null ? 4002 : parseInt(process.env.FROM_BTC_PORT), swapContract, chainEvents, nonce, WBTC_ADDRESS)
+    );
 
-    const fromBtcLn = new FromBtcLnAbs<SolanaSwapData>(directory+"/frombtcln", process.env.FROM_BTCLN_PORT==null ? 4000 : parseInt(process.env.FROM_BTCLN_PORT), swapContract, chainEvents, nonce, WBTC_ADDRESS);
-    await fromBtcLn.init();
+    swapHandlers.push(
+        new ToBtcLnAbs<SolanaSwapData>(directory+"/tobtcln", process.env.TO_BTCLN_PORT==null ? 4001 : parseInt(process.env.TO_BTCLN_PORT), swapContract, chainEvents, nonce, WBTC_ADDRESS)
+    );
+    swapHandlers.push(
+        new FromBtcLnAbs<SolanaSwapData>(directory+"/frombtcln", process.env.FROM_BTCLN_PORT==null ? 4000 : parseInt(process.env.FROM_BTCLN_PORT), swapContract, chainEvents, nonce, WBTC_ADDRESS)
+    );
+
+    for(let swapHandler of swapHandlers) {
+        await swapHandler.init();
+    }
 
     await chainEvents.init();
 
-    await toBtc.startWatchdog();
-    await fromBtc.startWatchdog();
-    await toBtcLn.startWatchdog();
-    await fromBtcLn.startWatchdog();
+    for(let swapHandler of swapHandlers) {
+        await swapHandler.startWatchdog();
+    }
 
-    await toBtc.startRestServer();
-    await fromBtc.startRestServer();
-    await toBtcLn.startRestServer();
-    await fromBtcLn.startRestServer();
+    for(let swapHandler of swapHandlers) {
+        swapHandler.startRestServer();
+    }
 
-    // //Initialize nonce
-    // await Nonce.init();
-    //
-    // //Initialize
-    // const toBtc = new ToBtc("storage/tobtc", process.env.TO_BTC_PORT==null ? 4003 : parseInt(process.env.TO_BTC_PORT));
-    // await toBtc.init();
-    //
-    // const fromBtc = new FromBtc("storage/frombtc", process.env.FROM_BTC_PORT==null ? 4002 : parseInt(process.env.FROM_BTC_PORT));
-    // await fromBtc.init();
-    //
-    // const toBtcLn = new ToBtcLn("storage/tobtcln", process.env.TO_BTCLN_PORT==null ? 4001 : parseInt(process.env.TO_BTCLN_PORT));
-    // await toBtcLn.init();
-    //
-    // const fromBtcLn = new FromBtcLn("storage/frombtcln", process.env.FROM_BTCLN_PORT==null ? 4000 : parseInt(process.env.FROM_BTCLN_PORT));
-    // await fromBtcLn.init();
-    //
-    // //Sync to latest
-    // await SolEvents.init();
-    //
-    // //Start watchdogs
-    // await toBtc.startWatchdog();
-    // await fromBtc.startWatchdog();
-    // await toBtcLn.startWatchdog();
-    // await fromBtcLn.startWatchdog();
-    //
-    // //Start listening
-    // await toBtc.startRestServer();
-    // await fromBtc.startRestServer();
-    // await toBtcLn.startRestServer();
-    // await fromBtcLn.startRestServer();
 }
 
 main();

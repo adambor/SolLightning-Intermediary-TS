@@ -9,7 +9,7 @@ import {WBTC_ADDRESS} from "../Constants";
 async function main() {
 
     const btcRelay = new SolanaBtcRelay(AnchorSigner);
-    const swapContract = new SolanaSwapProgram(AnchorSigner, btcRelay);
+    const swapContract = new SolanaSwapProgram(AnchorSigner, btcRelay, "");
 
     const data: any = await swapContract.program.account.userAccount.fetch(swapContract.SwapUserVault(AnchorSigner.publicKey, WBTC_ADDRESS));
 

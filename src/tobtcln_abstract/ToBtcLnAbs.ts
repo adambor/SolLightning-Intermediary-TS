@@ -18,13 +18,14 @@ import InitializeEvent from "../events/types/InitializeEvent";
 import ClaimEvent from "../events/types/ClaimEvent";
 import RefundEvent from "../events/types/RefundEvent";
 import SwapType from "../swaps/SwapType";
+import SwapHandler from "../swaps/SwapHandler";
 
 const MIN_LNSEND_CTLV = new BN(10);
 const MIN_LNSEND_TS_DELTA = GRACE_PERIOD.add(BITCOIN_BLOCKTIME.mul(MIN_LNSEND_CTLV).mul(SAFETY_FACTOR));
 
 const INVOICE_CHECK_INTERVAL = 1*60*1000;
 
-class ToBtcLnAbs<T extends SwapData> {
+class ToBtcLnAbs<T extends SwapData> implements SwapHandler  {
 
     storageManager: StorageManager<ToBtcLnSwapAbs<T>>;
     restPort: number;

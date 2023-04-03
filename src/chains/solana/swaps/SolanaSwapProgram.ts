@@ -17,6 +17,7 @@ import BTCMerkleTree from "../../../btcrelay/BTCMerkleTree";
 import * as bitcoin from "bitcoinjs-lib";
 import SolanaBtcRelay from "../btcrelay/SolanaBtcRelay";
 import {programIdl} from "./programIdl";
+import * as fs from "fs/promises";
 
 const STATE_SEED = "state";
 const VAULT_SEED = "vault";
@@ -29,6 +30,8 @@ class SolanaSwapProgram implements SwapContract<SolanaSwapData> {
     claimWithSecretTimeout: number = 45;
     claimWithTxDataTimeout: number = 120;
     refundTimeout: number = 45;
+
+    readonly storageDirectory: string;
 
     private readonly signer: AnchorProvider & {signer: Signer};
     readonly program: Program;
@@ -63,7 +66,7 @@ class SolanaSwapProgram implements SwapContract<SolanaSwapData> {
         return Keypair.fromSeed(buff);
     };
 
-    constructor(signer: AnchorProvider & {signer: Signer}, btcRelay: SolanaBtcRelay) {
+    constructor(signer: AnchorProvider & {signer: Signer}, btcRelay: SolanaBtcRelay, storageDirectory: string) {
         this.signer = signer;
         this.program = new Program(programIdl as any, programIdl.metadata.address, signer);
         this.coder = new BorshCoder(programIdl as any);
@@ -71,10 +74,65 @@ class SolanaSwapProgram implements SwapContract<SolanaSwapData> {
 
         this.btcRelay = btcRelay;
 
+        this.storageDirectory = storageDirectory;
+
         this.SwapVaultAuthority = PublicKey.findProgramAddressSync(
             [Buffer.from(AUTHORITY_SEED)],
             this.program.programId
         )[0];
+    }
+
+    async init(): Promise<void> {
+        try {
+            await fs.mkdir(this.storageDirectory);
+        } catch (e) {}
+
+        let files;
+        try {
+            files = await fs.readdir(this.storageDirectory);
+        } catch (e) {
+            console.error(e);
+        }
+
+        console.log("[To BTC: Solana.GC] Running GC on previously initialized data account");
+
+        for(let file of files) {
+            const result = await fs.readFile(this.storageDirectory+"/"+file);
+            const obj = JSON.parse(result.toString());
+
+            const publicKey = new PublicKey(obj.publicKey);
+
+            try {
+                const fetchedDataAccount: any = await this.signer.connection.getAccountInfo(publicKey);
+                if(fetchedDataAccount!=null) {
+                    console.log("[To BTC: Solana.GC] Will erase previous data account");
+                    const eraseTx = await this.program.methods
+                        .closeData()
+                        .accounts({
+                            signer: this.signer.publicKey,
+                            data: publicKey
+                        })
+                        .signers([this.signer.signer])
+                        .transaction();
+
+                    const signature = await this.signer.sendAndConfirm(eraseTx, [this.signer.signer]);
+                    console.log("[To BTC: Solana.GC] Previous data account erased: ", signature);
+                }
+                await this.removeDataAccount(publicKey);
+            } catch (e) {}
+        }
+    }
+
+    async saveDataAccount(publicKey: PublicKey) {
+        await fs.writeFile(this.storageDirectory+"/"+publicKey.toBase58()+".json", JSON.stringify({
+            publicKey: publicKey.toBase58()
+        }));
+    }
+
+    async removeDataAccount(publicKey: PublicKey) {
+        try {
+            await fs.rm(this.storageDirectory+"/"+publicKey.toBase58()+".json");
+        } catch (e) {}
     }
 
     areWeClaimer(swapData: SolanaSwapData): boolean {
@@ -380,23 +438,21 @@ class SolanaSwapProgram implements SwapContract<SolanaSwapData> {
 
         const txDataKey = this.SwapTxDataAlt(merkleProof.reversedTxId, this.signer.signer);
 
-        try {
-            const fetchedDataAccount: any = await this.signer.connection.getAccountInfo(txDataKey.publicKey);
-            if(fetchedDataAccount!=null) {
-                console.log("[To BTC: Solana.Claim] Will erase previous data account");
-                const eraseTx = await this.program.methods
-                    .closeData()
-                    .accounts({
-                        signer: this.signer.publicKey,
-                        data: txDataKey.publicKey
-                    })
-                    .signers([this.signer.signer])
-                    .transaction();
+        const fetchedDataAccount: any = await this.signer.connection.getAccountInfo(txDataKey.publicKey);
+        if(fetchedDataAccount!=null) {
+            console.log("[To BTC: Solana.Claim] Will erase previous data account");
+            const eraseTx = await this.program.methods
+                .closeData()
+                .accounts({
+                    signer: this.signer.publicKey,
+                    data: txDataKey.publicKey
+                })
+                .signers([this.signer.signer])
+                .transaction();
 
-                const signature = await this.signer.sendAndConfirm(eraseTx, [this.signer.signer]);
-                console.log("[To BTC: Solana.Claim] Previous data account erased: ", signature);
-            }
-        } catch (e) {}
+            const signature = await this.signer.sendAndConfirm(eraseTx, [this.signer.signer]);
+            console.log("[To BTC: Solana.Claim] Previous data account erased: ", signature);
+        }
 
         {
             const dataSize = writeData.length;
@@ -424,11 +480,16 @@ class SolanaSwapProgram implements SwapContract<SolanaSwapData> {
             initTx.add(accIx);
             initTx.add(initIx);
 
+            await this.saveDataAccount(txDataKey.publicKey);
             const signature = await this.signer.sendAndConfirm(initTx, [this.signer.signer, txDataKey]);
             console.log("[To BTC: Solana.Claim] New data account initialized: ", signature);
         }
 
         let pointer = 0;
+        const writeTxs: {
+            tx: Transaction,
+            signers?: Signer[]
+        }[] = [];
         while(pointer<writeData.length) {
             const writeLen = Math.min(writeData.length-pointer, 950);
 
@@ -441,12 +502,17 @@ class SolanaSwapProgram implements SwapContract<SolanaSwapData> {
                 .signers([this.signer.signer])
                 .transaction();
 
-            const signature = await this.signer.sendAndConfirm(writeTx, [this.signer.signer]);
+            writeTxs.push({
+                tx: writeTx,
+                signers: [this.signer.signer]
+            });
 
-            console.log("[To BTC: Solana.Claim] Write partial tx data ("+pointer+" .. "+(pointer+writeLen)+")/"+writeData.length+": ", signature);
+            console.log("[To BTC: Solana.Claim] Write partial tx data ("+pointer+" .. "+(pointer+writeLen)+")/"+writeData.length);
 
             pointer += writeLen;
         }
+
+        const signatures = await this.signer.sendAll(writeTxs);
 
         console.log("[To BTC: Solana.Claim] Tx data written");
 
@@ -475,6 +541,8 @@ class SolanaSwapProgram implements SwapContract<SolanaSwapData> {
 
         const signature = await this.signer.sendAndConfirm(solanaTx, [this.signer.signer]);
         console.log("[To BTC: Solana.Claim] Transaction confirmed: ", signature);
+
+        await this.removeDataAccount(txDataKey.publicKey);
 
         return true;
 

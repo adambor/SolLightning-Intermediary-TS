@@ -30,6 +30,7 @@ import SwapType from "../swaps/SwapType";
 import {TokenAddress} from "../swaps/TokenAddress";
 import SwapNonce from "../swaps/SwapNonce";
 import ChainEvents from "../events/ChainEvents";
+import SwapHandler from "../swaps/SwapHandler";
 
 const TX_CHECK_INTERVAL = 10*1000;
 
@@ -45,7 +46,7 @@ const OUTPUT_SCRIPT_MAX_LENGTH = 200;
 
 const SWAP_CHECK_INTERVAL = 1*60*1000;
 
-class ToBtcAbs<T extends SwapData> {
+class ToBtcAbs<T extends SwapData> implements SwapHandler  {
 
     storageManager: StorageManager<ToBtcSwapAbs<T>>;
     restPort: number;

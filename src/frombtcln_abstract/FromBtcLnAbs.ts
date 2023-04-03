@@ -28,6 +28,7 @@ import InitializeEvent from "../events/types/InitializeEvent";
 import ClaimEvent from "../events/types/ClaimEvent";
 import RefundEvent from "../events/types/RefundEvent";
 import SwapType from "../swaps/SwapType";
+import SwapHandler from "../swaps/SwapHandler";
 
 const HEX_REGEX = /[0-9a-fA-F]+/;
 
@@ -35,7 +36,7 @@ const MIN_LNRECEIVE_CTLV = new BN(20);
 
 const SWAP_CHECK_INTERVAL = 5*60*1000;
 
-class FromBtcLnAbs<T extends SwapData> {
+class FromBtcLnAbs<T extends SwapData> implements SwapHandler {
 
     storageManager: StorageManager<FromBtcLnSwapAbs<T>>;
     restPort: number;

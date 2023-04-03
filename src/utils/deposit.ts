@@ -11,7 +11,7 @@ import SolanaBtcRelay from "../chains/solana/btcrelay/SolanaBtcRelay";
 
 async function deposit(amount: number) {
     const btcRelay = new SolanaBtcRelay(AnchorSigner);
-    const swapContract = new SolanaSwapProgram(AnchorSigner, btcRelay);
+    const swapContract = new SolanaSwapProgram(AnchorSigner, btcRelay, "");
 
     const ata = await getAssociatedTokenAddress(WBTC_ADDRESS, AnchorSigner.publicKey);
 

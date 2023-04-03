@@ -25,13 +25,14 @@ import InitializeEvent from "../events/types/InitializeEvent";
 import SwapType from "../swaps/SwapType";
 import ClaimEvent from "../events/types/ClaimEvent";
 import RefundEvent from "../events/types/RefundEvent";
+import SwapHandler from "../swaps/SwapHandler";
 
 const CONFIRMATIONS = 1;
 const SWAP_CSV_DELTA = 144; //A day
 
 const REFUND_CHECK_INTERVAL = 5*60*1000;
 
-class FromBtcAbs<T extends SwapData> {
+class FromBtcAbs<T extends SwapData> implements SwapHandler  {
 
     storageManager: StorageManager<FromBtcSwapAbs<T>>;
     restPort: number;
