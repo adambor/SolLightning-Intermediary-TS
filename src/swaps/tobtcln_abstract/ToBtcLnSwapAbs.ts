@@ -1,7 +1,7 @@
 import * as BN from "bn.js";
 import * as bolt11 from "bolt11";
-import SwapData from "../swaps/SwapData";
-import Lockable from "../Lockable";
+import SwapData from "../SwapData";
+import Lockable from "../../lockable/Lockable";
 
 export enum ToBtcLnSwapState {
     NON_PAYABLE = -1,

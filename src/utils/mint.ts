@@ -1,7 +1,7 @@
 import * as dotenv from "dotenv";
 dotenv.config();
 
-import {WBTC_ADDRESS} from "../Constants";
+import {WBTC_ADDRESS} from "../constants/Constants";
 import {getOrCreateAssociatedTokenAccount, mintTo} from "@solana/spl-token";
 import AnchorSigner from "../chains/solana/signer/AnchorSigner";
 import {PublicKey} from "@solana/web3.js";

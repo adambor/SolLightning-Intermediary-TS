@@ -2,9 +2,9 @@ import * as BN from "bn.js";
 import {PublicKey} from "@solana/web3.js";
 import {createHash} from "crypto";
 import * as bitcoin from "bitcoinjs-lib";
-import {BITCOIN_NETWORK} from "../Constants";
-import SwapData from "../swaps/SwapData";
-import Lockable from "../Lockable";
+import {BITCOIN_NETWORK} from "../../constants/Constants";
+import SwapData from "../SwapData";
+import Lockable from "../../lockable/Lockable";
 
 export enum ToBtcSwapState {
     NON_PAYABLE = -1,

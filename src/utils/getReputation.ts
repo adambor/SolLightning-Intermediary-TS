@@ -4,7 +4,7 @@ dotenv.config();
 import AnchorSigner from "../chains/solana/signer/AnchorSigner";
 import SolanaBtcRelay from "../chains/solana/btcrelay/SolanaBtcRelay";
 import SolanaSwapProgram from "../chains/solana/swaps/SolanaSwapProgram";
-import {WBTC_ADDRESS} from "../Constants";
+import {WBTC_ADDRESS} from "../constants/Constants";
 
 async function main() {
 

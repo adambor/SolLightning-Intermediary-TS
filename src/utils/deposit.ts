@@ -1,7 +1,7 @@
 import * as dotenv from "dotenv";
 dotenv.config();
 
-import {WBTC_ADDRESS} from "../Constants";
+import {WBTC_ADDRESS} from "../constants/Constants";
 import AnchorSigner from "../chains/solana/signer/AnchorSigner";
 import {getAssociatedTokenAddress, TOKEN_PROGRAM_ID} from "@solana/spl-token";
 import {BN} from "@project-serum/anchor";

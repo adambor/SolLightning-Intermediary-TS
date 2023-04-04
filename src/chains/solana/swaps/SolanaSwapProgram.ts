@@ -8,7 +8,7 @@ import SwapNonce from "../../../swaps/SwapNonce";
 import {Keypair, PublicKey, Signer, SystemProgram, SYSVAR_INSTRUCTIONS_PUBKEY, Transaction} from "@solana/web3.js";
 import {
     AUTHORIZATION_TIMEOUT
-} from "../../../Constants";
+} from "../../../constants/Constants";
 import {createHash} from "crypto";
 import {sign} from "tweetnacl";
 import {getAssociatedTokenAddressSync} from "@solana/spl-token";
@@ -269,6 +269,13 @@ class SolanaSwapProgram implements SwapContract<SolanaSwapData> {
             timeout: authTimeout.toString(10),
             signature: Buffer.from(signature).toString("hex")
         });
+    }
+
+    getDataSignature(data: Buffer): Promise<string> {
+        const buff = createHash("sha256").update(data).digest();
+        const signature = sign.detached(buff, this.signer.signer.secretKey);
+
+        return Promise.resolve(Buffer.from(signature).toString("hex"));
     }
 
     async isCommited(swapData: SolanaSwapData): Promise<boolean> {

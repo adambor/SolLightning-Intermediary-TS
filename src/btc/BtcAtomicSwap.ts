@@ -1,6 +1,6 @@
 import * as bitcoin from "bitcoinjs-lib";
 import {createHash} from "crypto";
-import {BITCOIN_NETWORK} from "../Constants";
+import {BITCOIN_NETWORK} from "../constants/Constants";
 import * as lncli from "ln-service";
 import LND from "./LND";
 

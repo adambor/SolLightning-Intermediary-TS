@@ -1,24 +1,22 @@
 import * as BN from "bn.js";
-import {BITCOIN_BLOCKTIME, GRACE_PERIOD, LN_BASE_FEE, LN_FEE_PPM, LN_MAX, LN_MIN, SAFETY_FACTOR} from "../Constants";
-import StorageManager from "../StorageManager";
-import * as express from "express";
+import {BITCOIN_BLOCKTIME, GRACE_PERIOD, LN_BASE_FEE, LN_FEE_PPM, LN_MAX, LN_MIN, SAFETY_FACTOR} from "../../constants/Constants";
+import StorageManager from "../../storagemanager/StorageManager";
 import {Express} from "express";
-import * as cors from "cors";
 import * as bolt11 from "bolt11";
 import * as lncli from "ln-service";
-import LND from "../btc/LND";
-import SwapData from "../swaps/SwapData";
+import LND from "../../btc/LND";
+import SwapData from "../SwapData";
 import {ToBtcLnSwapAbs, ToBtcLnSwapState} from "./ToBtcLnSwapAbs";
-import SwapContract from "../swaps/SwapContract";
-import ChainEvents from "../events/ChainEvents";
-import SwapNonce from "../swaps/SwapNonce";
-import {TokenAddress} from "../swaps/TokenAddress";
-import SwapEvent from "../events/types/SwapEvent";
-import InitializeEvent from "../events/types/InitializeEvent";
-import ClaimEvent from "../events/types/ClaimEvent";
-import RefundEvent from "../events/types/RefundEvent";
-import SwapType from "../swaps/SwapType";
-import SwapHandler from "../swaps/SwapHandler";
+import SwapContract from "../SwapContract";
+import ChainEvents from "../../events/ChainEvents";
+import SwapNonce from "../SwapNonce";
+import {TokenAddress} from "../TokenAddress";
+import SwapEvent from "../../events/types/SwapEvent";
+import InitializeEvent from "../../events/types/InitializeEvent";
+import ClaimEvent from "../../events/types/ClaimEvent";
+import RefundEvent from "../../events/types/RefundEvent";
+import SwapType from "../SwapType";
+import SwapHandler, {SwapHandlerType} from "../SwapHandler";
 
 const MIN_LNSEND_CTLV = new BN(10);
 const MIN_LNSEND_TS_DELTA = GRACE_PERIOD.add(BITCOIN_BLOCKTIME.mul(MIN_LNSEND_CTLV).mul(SAFETY_FACTOR));
@@ -28,23 +26,25 @@ const INVOICE_CHECK_INTERVAL = 1*60*1000;
 class ToBtcLnAbs<T extends SwapData> implements SwapHandler  {
 
     storageManager: StorageManager<ToBtcLnSwapAbs<T>>;
-    restPort: number;
-    restServer: Express;
 
     activeSubscriptions: Set<string> = new Set<string>();
+
+    readonly type = SwapHandlerType.TO_BTCLN;
+
+    readonly path: string;
 
     readonly swapContract: SwapContract<T>;
     readonly chainEvents: ChainEvents<T>;
     readonly nonce: SwapNonce;
     readonly WBTC_ADDRESS: TokenAddress;
 
-    constructor(storageDirectory: string, restPort: number, swapContract: SwapContract<T>, chainEvents: ChainEvents<T>, swapNonce: SwapNonce, WBTC_ADDRESS: TokenAddress) {
+    constructor(storageDirectory: string, path: string, swapContract: SwapContract<T>, chainEvents: ChainEvents<T>, swapNonce: SwapNonce, WBTC_ADDRESS: TokenAddress) {
         this.storageManager = new StorageManager<ToBtcLnSwapAbs<T>>(storageDirectory);
-        this.restPort = restPort;
         this.swapContract = swapContract;
         this.chainEvents = chainEvents;
         this.nonce = swapNonce;
         this.WBTC_ADDRESS = WBTC_ADDRESS;
+        this.path = path;
     }
 
     async checkPastInvoices() {
@@ -329,12 +329,8 @@ class ToBtcLnAbs<T extends SwapData> implements SwapHandler  {
 
     }
 
-    startRestServer() {
-        this.restServer = express();
-        this.restServer.use(cors());
-        this.restServer.use(express.json());
-
-        this.restServer.post("/payInvoice", async (req, res) => {
+    startRestServer(restServer: Express) {
+        restServer.post(this.path+"/payInvoice", async (req, res) => {
             /**
              * pr: string                   bolt11 lightning invoice
              * maxFee: string               maximum routing fee
@@ -539,7 +535,7 @@ class ToBtcLnAbs<T extends SwapData> implements SwapHandler  {
             }
         });
 
-        this.restServer.post('/getRefundAuthorization', async (req, res) => {
+        restServer.post(this.path+'/getRefundAuthorization', async (req, res) => {
             /**
              * paymentHash: string          Identifier of the swap
              */
@@ -647,9 +643,7 @@ class ToBtcLnAbs<T extends SwapData> implements SwapHandler  {
             }
         });
 
-        this.restServer.listen(this.restPort);
-
-        console.log("[To BTC-LN: REST] Started on port: ", this.restPort);
+        console.log("[To BTC-LN: REST] Started at path: ", this.path);
 
     }
 
@@ -671,6 +665,19 @@ class ToBtcLnAbs<T extends SwapData> implements SwapHandler  {
     async init() {
         await this.storageManager.loadData(ToBtcLnSwapAbs);
         this.subscribeToEvents();
+    }
+
+    getInfo(): { swapFeePPM: number, swapBaseFee: number, min: number, max: number, data?: any } {
+        return {
+            swapFeePPM: LN_FEE_PPM.toNumber(),
+            swapBaseFee: LN_BASE_FEE.toNumber(),
+            min: LN_MIN.toNumber(),
+            max: LN_MAX.toNumber(),
+            data: {
+                minCltv: MIN_LNSEND_CTLV.toNumber(),
+                minTimestampCltv: MIN_LNSEND_TS_DELTA.toNumber()
+            }
+        };
     }
 
 }

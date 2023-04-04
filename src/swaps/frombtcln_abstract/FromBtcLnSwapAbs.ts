@@ -1,6 +1,6 @@
 import * as BN from "bn.js";
-import SwapData from "../swaps/SwapData";
-import Lockable from "../Lockable";
+import SwapData from "../SwapData";
+import Lockable from "../../lockable/Lockable";
 
 export enum FromBtcLnSwapState {
     CANCELED = -1,

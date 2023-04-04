@@ -1,6 +1,5 @@
 import SwapEvent from "./SwapEvent";
 import SwapData from "../../swaps/SwapData";
-import * as BN from "bn.js";
 
 class InitializeEvent<T extends SwapData> extends SwapEvent<T> {
 

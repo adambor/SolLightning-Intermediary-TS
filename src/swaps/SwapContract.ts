@@ -34,6 +34,7 @@ interface SwapContract<T extends SwapData> {
         timeout: string,
         signature: string
     }>;
+    getDataSignature(data: Buffer): Promise<string>;
 
     getBalance(token: TokenAddress): Promise<BN>;
 

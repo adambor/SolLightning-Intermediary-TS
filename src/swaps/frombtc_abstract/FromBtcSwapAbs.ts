@@ -1,9 +1,9 @@
 import * as BN from "bn.js";
 import * as bitcoin from "bitcoinjs-lib";
-import {BITCOIN_NETWORK} from "../Constants";
+import {BITCOIN_NETWORK} from "../../constants/Constants";
 import {createHash} from "crypto";
-import SwapData from "../swaps/SwapData";
-import Lockable from "../Lockable";
+import SwapData from "../SwapData";
+import Lockable from "../../lockable/Lockable";
 
 export enum FromBtcSwapState {
     CANCELED = -1,

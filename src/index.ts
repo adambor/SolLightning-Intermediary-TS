@@ -6,14 +6,17 @@ import SwapNonce from "./swaps/SwapNonce";
 import SolanaBtcRelay from "./chains/solana/btcrelay/SolanaBtcRelay";
 import AnchorSigner from "./chains/solana/signer/AnchorSigner";
 import SolanaSwapProgram from "./chains/solana/swaps/SolanaSwapProgram";
-import ToBtcAbs from "./tobtc_abstract/ToBtcAbs";
+import ToBtcAbs from "./swaps/tobtc_abstract/ToBtcAbs";
 import SolanaChainEvents from "./chains/solana/events/SolanaChainEvents";
-import {WBTC_ADDRESS} from "./Constants";
-import ToBtcLnAbs from "./tobtcln_abstract/ToBtcLnAbs";
+import {WBTC_ADDRESS} from "./constants/Constants";
+import ToBtcLnAbs from "./swaps/tobtcln_abstract/ToBtcLnAbs";
 import SolanaSwapData from "./chains/solana/swaps/SolanaSwapData";
-import FromBtcAbs from "./frombtc_abstract/FromBtcAbs";
-import FromBtcLnAbs from "./frombtcln_abstract/FromBtcLnAbs";
+import FromBtcAbs from "./swaps/frombtc_abstract/FromBtcAbs";
+import FromBtcLnAbs from "./swaps/frombtcln_abstract/FromBtcLnAbs";
 import SwapHandler from "./swaps/SwapHandler";
+import * as express from "express";
+import * as cors from "cors";
+import InfoHandler from "./info/InfoHandler";
 
 async function main() {
 
@@ -26,41 +29,64 @@ async function main() {
     const nonce = new SwapNonce(directory);
     await nonce.init();
 
+    console.log("[Main]: Nonce initialized!");
+
     const btcRelay = new SolanaBtcRelay(AnchorSigner);
     const swapContract = new SolanaSwapProgram(AnchorSigner, btcRelay, directory+"/solaccounts");
     const chainEvents = new SolanaChainEvents(directory, AnchorSigner, swapContract);
 
     await swapContract.init();
+    console.log("[Main]: Swap contract initialized!");
 
     const swapHandlers: SwapHandler[] = [];
 
     swapHandlers.push(
-        new ToBtcAbs<SolanaSwapData>(directory+"/tobtc", process.env.TO_BTC_PORT==null ? 4003 : parseInt(process.env.TO_BTC_PORT), swapContract, chainEvents, nonce, WBTC_ADDRESS)
+        new ToBtcAbs<SolanaSwapData>(directory+"/tobtc", "/tobtc", swapContract, chainEvents, nonce, WBTC_ADDRESS)
     );
     swapHandlers.push(
-        new FromBtcAbs<SolanaSwapData>(directory+"/frombtc", process.env.FROM_BTC_PORT==null ? 4002 : parseInt(process.env.FROM_BTC_PORT), swapContract, chainEvents, nonce, WBTC_ADDRESS)
+        new FromBtcAbs<SolanaSwapData>(directory+"/frombtc", "/frombtc", swapContract, chainEvents, nonce, WBTC_ADDRESS)
     );
 
     swapHandlers.push(
-        new ToBtcLnAbs<SolanaSwapData>(directory+"/tobtcln", process.env.TO_BTCLN_PORT==null ? 4001 : parseInt(process.env.TO_BTCLN_PORT), swapContract, chainEvents, nonce, WBTC_ADDRESS)
+        new ToBtcLnAbs<SolanaSwapData>(directory+"/tobtcln", "/tobtcln", swapContract, chainEvents, nonce, WBTC_ADDRESS)
     );
     swapHandlers.push(
-        new FromBtcLnAbs<SolanaSwapData>(directory+"/frombtcln", process.env.FROM_BTCLN_PORT==null ? 4000 : parseInt(process.env.FROM_BTCLN_PORT), swapContract, chainEvents, nonce, WBTC_ADDRESS)
+        new FromBtcLnAbs<SolanaSwapData>(directory+"/frombtcln", "/frombtcln", swapContract, chainEvents, nonce, WBTC_ADDRESS)
     );
 
     for(let swapHandler of swapHandlers) {
         await swapHandler.init();
     }
 
+    console.log("[Main]: Swap handlers initialized!");
+
     await chainEvents.init();
+
+    console.log("[Main]: Chain events synchronized!");
 
     for(let swapHandler of swapHandlers) {
         await swapHandler.startWatchdog();
     }
 
+    console.log("[Main]: Watchdogs started!");
+
+    const restServer = express();
+    restServer.use(cors());
+    restServer.use(express.json());
+
+    const infoHandler = new InfoHandler(swapContract, "", swapHandlers);
+
     for(let swapHandler of swapHandlers) {
-        swapHandler.startRestServer();
+        swapHandler.startRestServer(restServer);
     }
+
+    infoHandler.startRestServer(restServer);
+
+    const listenPort = process.env.REST_PORT==null ? 4000 : parseInt(process.env.REST_PORT);
+
+    restServer.listen(listenPort);
+
+    console.log("[Main]: Rest server listening on port: ", listenPort)
 
 }
 
