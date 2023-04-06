@@ -17,6 +17,7 @@ import ClaimEvent from "../../events/types/ClaimEvent";
 import RefundEvent from "../../events/types/RefundEvent";
 import SwapType from "../SwapType";
 import SwapHandler, {SwapHandlerType} from "../SwapHandler";
+import {MAX_SOL_SKEW} from "../../../dist/Constants";
 
 const MIN_LNSEND_CTLV = new BN(10);
 const MIN_LNSEND_TS_DELTA = GRACE_PERIOD.add(BITCOIN_BLOCKTIME.mul(MIN_LNSEND_CTLV).mul(SAFETY_FACTOR));
@@ -54,10 +55,16 @@ class ToBtcLnAbs<T extends SwapData> implements SwapHandler  {
             const decodedPR = bolt11.decode(invoiceData.pr);
 
             if (invoiceData.state === ToBtcLnSwapState.SAVED) {
+                const timestamp = new BN(Math.floor(Date.now()/1000)).sub(new BN(MAX_SOL_SKEW));
+                if(invoiceData.signatureExpiry!=null && invoiceData.signatureExpiry.lt(timestamp)) {
+                    //Signature expired
+                    await this.storageManager.removeData(invoiceData.getHashBuffer());
+                    continue;
+                }
                 //Yet unpaid
                 if (decodedPR.timeExpireDate < Date.now() / 1000) {
                     //Expired
-                    await this.storageManager.removeData(Buffer.from(decodedPR.tagsObject.payment_hash, "hex"));
+                    await this.storageManager.removeData(invoiceData.getHashBuffer());
                     continue;
                 }
             }
@@ -488,7 +495,6 @@ class ToBtcLnAbs<T extends SwapData> implements SwapHandler  {
 
                 const swapFee = amountBD.mul(LN_FEE_PPM).div(new BN(1000000)).add(LN_BASE_FEE);
 
-                const createdSwap = new ToBtcLnSwapAbs<T>(req.body.pr, swapFee);
 
                 const total = amountBD.add(maxFeeBD).add(swapFee);
 
@@ -498,18 +504,19 @@ class ToBtcLnAbs<T extends SwapData> implements SwapHandler  {
                     this.swapContract.getAddress(),
                     this.WBTC_ADDRESS,
                     total,
-                    createdSwap.getHash(),
+                    parsedPR.tagsObject.payment_hash,
                     expiryTimestamp,
                     new BN(0),
                     0,
                     false
                 );
 
+                const sigData = await this.swapContract.getClaimInitSignature(payObject, this.nonce);
+
+                const createdSwap = new ToBtcLnSwapAbs<T>(req.body.pr, swapFee, new BN(sigData.timeout));
                 createdSwap.data = payObject;
 
                 await this.storageManager.saveData(Buffer.from(parsedPR.tagsObject.payment_hash, "hex"), createdSwap);
-
-                const sigData = await this.swapContract.getClaimInitSignature(payObject, this.nonce);
 
                 res.status(200).json({
                     code: 20000,
