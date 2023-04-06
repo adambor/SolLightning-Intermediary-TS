@@ -31,6 +31,7 @@ import {TokenAddress} from "../TokenAddress";
 import SwapNonce from "../SwapNonce";
 import ChainEvents from "../../events/ChainEvents";
 import SwapHandler, {SwapHandlerType} from "../SwapHandler";
+import {MAX_SOL_SKEW} from "../../../dist/Constants";
 
 const TX_CHECK_INTERVAL = 10*1000;
 
@@ -86,16 +87,20 @@ class ToBtcAbs<T extends SwapData> implements SwapHandler  {
     async checkPastSwaps() {
 
         for(let key in this.storageManager.data) {
-            const payment = this.storageManager.data[key];
+            const payment: ToBtcSwapAbs<T> = this.storageManager.data[key];
 
-            if(payment.state===ToBtcSwapState.SAVED) {
-                //Yet unpaid
-                //TODO: Implement some expiry
-                continue;
+            const timestamp = new BN(Math.floor(Date.now()/1000)).sub(new BN(MAX_SOL_SKEW));
+
+            if(payment.state===ToBtcSwapState.SAVED && payment.signatureExpiry!=null) {
+                if(payment.signatureExpiry.lt(timestamp)) {
+                    //Signature expired
+                    await this.storageManager.removeData(payment.getHash());
+                    continue;
+                }
             }
 
-            if(payment.state===ToBtcSwapState.NON_PAYABLE) {
-                if(payment.data.getExpiry().lt(new BN(Math.floor(Date.now()/1000)))) {
+            if(payment.state===ToBtcSwapState.NON_PAYABLE || payment.state===ToBtcSwapState.SAVED) {
+                if(payment.data.getExpiry().lt(timestamp)) {
                     //Expired
                     await this.storageManager.removeData(payment.getHash());
                     continue;
@@ -616,9 +621,6 @@ class ToBtcAbs<T extends SwapData> implements SwapHandler  {
 
             const swapFee = CHAIN_BASE_FEE.add(amountBD.mul(CHAIN_FEE_PPM).div(new BN(1000000)));
 
-            const createdSwap = new ToBtcSwapAbs<T>(req.body.address, amountBD, swapFee, nonce, req.body.confirmationTarget);
-            const paymentHash = createdSwap.getHash();
-
             const total = amountBD.add(swapFee).add(networkFeeAdjusted);
 
             const currentTimestamp = new BN(Math.floor(Date.now()/1000));
@@ -630,18 +632,20 @@ class ToBtcAbs<T extends SwapData> implements SwapHandler  {
                 this.swapContract.getAddress(),
                 this.WBTC_ADDRESS,
                 total,
-                createdSwap.getHash().toString("hex"),
+                ToBtcSwapAbs.getHash(req.body.address, nonce, amountBD).toString("hex"),
                 minRequiredExpiry,
                 nonce,
                 req.body.confirmations,
                 false
             );
 
+            const sigData = await this.swapContract.getClaimInitSignature(payObject, this.nonce);
+
+            const createdSwap = new ToBtcSwapAbs<T>(req.body.address, amountBD, swapFee, nonce, req.body.confirmationTarget, new BN(sigData.timeout));
+            const paymentHash = createdSwap.getHash();
             createdSwap.data = payObject;
 
             await this.storageManager.saveData(paymentHash, createdSwap);
-
-            const sigData = await this.swapContract.getClaimInitSignature(payObject, this.nonce);
 
             res.status(200).json({
                 code: 20000,

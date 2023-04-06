@@ -22,15 +22,16 @@ export class ToBtcSwapAbs<T extends SwapData> extends Lockable implements Storag
     readonly swapFee: BN;
     readonly nonce: BN;
     readonly preferedConfirmationTarget: number;
+    readonly signatureExpiry: BN;
 
     txId: string;
 
     data: T;
 
-    constructor(address: string, amount: BN, swapFee: BN, nonce: BN, preferedConfirmationTarget: number);
+    constructor(address: string, amount: BN, swapFee: BN, nonce: BN, preferedConfirmationTarget: number, signatureExpiry: BN);
     constructor(obj: any);
 
-    constructor(prOrObj: string | any, amount?: BN, swapFee?: BN, nonce?: BN, preferedConfirmationTarget?: number) {
+    constructor(prOrObj: string | any, amount?: BN, swapFee?: BN, nonce?: BN, preferedConfirmationTarget?: number, signatureExpiry?: BN) {
         super();
         if(typeof(prOrObj)==="string") {
             this.state = ToBtcSwapState.SAVED;
@@ -39,6 +40,7 @@ export class ToBtcSwapAbs<T extends SwapData> extends Lockable implements Storag
             this.swapFee = swapFee;
             this.nonce = nonce;
             this.preferedConfirmationTarget = preferedConfirmationTarget;
+            this.signatureExpiry = signatureExpiry;
         } else {
             this.state = prOrObj.state;
             this.address = prOrObj.address;
@@ -46,6 +48,7 @@ export class ToBtcSwapAbs<T extends SwapData> extends Lockable implements Storag
             this.swapFee = new BN(prOrObj.swapFee);
             this.nonce = new BN(prOrObj.nonce);
             this.preferedConfirmationTarget = prOrObj.preferedConfirmationTarget;
+            this.signatureExpiry = prOrObj.signatureExpiry==null ? null : new BN(prOrObj.signatureExpiry);
 
             if(prOrObj.data!=null) {
                 this.data = SwapData.deserialize<T>(prOrObj.data);
@@ -63,6 +66,7 @@ export class ToBtcSwapAbs<T extends SwapData> extends Lockable implements Storag
 
             nonce: this.nonce.toString(10),
             preferedConfirmationTarget: this.preferedConfirmationTarget,
+            signatureExpiry: this.signatureExpiry==null ? null : this.signatureExpiry.toString(10),
 
             data: this.data==null ? null : this.data.serialize(),
             txId: this.txId
@@ -70,11 +74,15 @@ export class ToBtcSwapAbs<T extends SwapData> extends Lockable implements Storag
     }
 
     getHash(): Buffer {
-        const parsedOutputScript = bitcoin.address.toOutputScript(this.address, BITCOIN_NETWORK);
+        return ToBtcSwapAbs.getHash(this.address, this.nonce, this.amount);
+    }
+
+    static getHash(address: string, nonce: BN, amount: BN): Buffer {
+        const parsedOutputScript = bitcoin.address.toOutputScript(address, BITCOIN_NETWORK);
 
         return createHash("sha256").update(Buffer.concat([
-            Buffer.from(this.nonce.toArray("le", 8)),
-            Buffer.from(this.amount.toArray("le", 8)),
+            Buffer.from(nonce.toArray("le", 8)),
+            Buffer.from(amount.toArray("le", 8)),
             parsedOutputScript
         ])).digest();
     }
