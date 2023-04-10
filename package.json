@@ -19,6 +19,7 @@
     "@project-serum/anchor": "^0.26.0",
     "@solana/spl-token": "^0.3.7",
     "@solana/web3.js": "^1.73.2",
+    "bip32": "^4.0.0",
     "bitcoind-rpc": "^0.9.1",
     "bitcoinjs-lib": "^6.1.0",
     "bn.js": "^5.2.1",
@@ -31,6 +32,7 @@
     "ln-service": "^54.4.1",
     "request": "^2.88.2",
     "request-promise-native": "^1.0.9",
+    "tiny-secp256k1": "^2.2.1",
     "tweetnacl": "^1.0.3",
     "typescript": "^4.9.4"
   },

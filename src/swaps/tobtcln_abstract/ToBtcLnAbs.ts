@@ -18,34 +18,21 @@ import RefundEvent from "../../events/types/RefundEvent";
 import SwapType from "../SwapType";
 import SwapHandler, {SwapHandlerType} from "../SwapHandler";
 import {MAX_SOL_SKEW} from "../../../dist/Constants";
+import ISwapPrice from "../ISwapPrice";
 
 const MIN_LNSEND_CTLV = new BN(10);
 const MIN_LNSEND_TS_DELTA = GRACE_PERIOD.add(BITCOIN_BLOCKTIME.mul(MIN_LNSEND_CTLV).mul(SAFETY_FACTOR));
 
 const INVOICE_CHECK_INTERVAL = 1*60*1000;
 
-class ToBtcLnAbs<T extends SwapData> implements SwapHandler  {
-
-    storageManager: StorageManager<ToBtcLnSwapAbs<T>>;
+class ToBtcLnAbs<T extends SwapData> extends SwapHandler<ToBtcLnSwapAbs<T>, T> {
 
     activeSubscriptions: Set<string> = new Set<string>();
 
     readonly type = SwapHandlerType.TO_BTCLN;
 
-    readonly path: string;
-
-    readonly swapContract: SwapContract<T>;
-    readonly chainEvents: ChainEvents<T>;
-    readonly nonce: SwapNonce;
-    readonly WBTC_ADDRESS: TokenAddress;
-
-    constructor(storageDirectory: string, path: string, swapContract: SwapContract<T>, chainEvents: ChainEvents<T>, swapNonce: SwapNonce, WBTC_ADDRESS: TokenAddress) {
-        this.storageManager = new StorageManager<ToBtcLnSwapAbs<T>>(storageDirectory);
-        this.swapContract = swapContract;
-        this.chainEvents = chainEvents;
-        this.nonce = swapNonce;
-        this.WBTC_ADDRESS = WBTC_ADDRESS;
-        this.path = path;
+    constructor(storageDirectory: string, path: string, swapContract: SwapContract<T>, chainEvents: ChainEvents<T>, swapNonce: SwapNonce, allowedTokens: TokenAddress[], swapPricing: ISwapPrice) {
+        super(storageDirectory, path, swapContract, chainEvents, swapNonce, allowedTokens, swapPricing);
     }
 
     async checkPastInvoices() {
@@ -178,14 +165,14 @@ class ToBtcLnAbs<T extends SwapData> implements SwapHandler  {
         };
 
         if(lnPaymentStatus==null) {
-            if (!data.isToken(this.WBTC_ADDRESS)) {
+            if (!data.isToken(invoiceData.data.getToken())) {
                 console.error("[To BTC-LN: Solana.Initialize] Invalid token used");
                 return;
             }
 
             console.log("[To BTC-LN: Solana.Initialize] Struct: ", data);
 
-            const tokenAmount: BN = data.getAmount();
+            //const tokenAmount: BN = data.getAmount();
             const expiryTimestamp: BN = data.getExpiry();
             const currentTimestamp: BN = new BN(Math.floor(Date.now()/1000));
 
@@ -219,16 +206,17 @@ class ToBtcLnAbs<T extends SwapData> implements SwapHandler  {
                 return;
             }
 
-            const maxFee = tokenAmount.sub(amountBD).sub(invoiceData.swapFee);
-
-            console.log("[To BTC-LN: Solana.Initialize] Invoice amount (sats): ", amountBD.toString(10));
-            console.log("[To BTC-LN: Solana.Initialize] Token amount (sats WBTC): ", tokenAmount.toString(10));
-
-            if(maxFee.lt(new BN(0))) {
-                console.error("[To BTC-LN: Solana.Initialize] Not enough paid!");
-                await markAsNonPayable();
-                return;
-            }
+            const maxFee = invoiceData.maxFee;
+            // const maxFee = tokenAmount.sub(amountBD).sub(invoiceData.swapFee);
+            //
+            // console.log("[To BTC-LN: Solana.Initialize] Invoice amount (sats): ", amountBD.toString(10));
+            // console.log("[To BTC-LN: Solana.Initialize] Token amount (sats WBTC): ", tokenAmount.toString(10));
+            //
+            // if(maxFee.lt(new BN(0))) {
+            //     console.error("[To BTC-LN: Solana.Initialize] Not enough paid!");
+            //     await markAsNonPayable();
+            //     return;
+            // }
 
             const maxUsableCLTV = expiryTimestamp.sub(currentTimestamp).sub(GRACE_PERIOD).div(BITCOIN_BLOCKTIME.mul(SAFETY_FACTOR));
 
@@ -342,6 +330,7 @@ class ToBtcLnAbs<T extends SwapData> implements SwapHandler  {
              * pr: string                   bolt11 lightning invoice
              * maxFee: string               maximum routing fee
              * expiryTimestamp: string      expiry timestamp of the to be created HTLC, determines how many LN paths can be considered
+             * token: string                Desired token to use
              */
             try {
                 if (
@@ -354,10 +343,20 @@ class ToBtcLnAbs<T extends SwapData> implements SwapHandler  {
                     typeof(req.body.maxFee) !== "string" ||
 
                     req.body.expiryTimestamp == null ||
-                    typeof(req.body.expiryTimestamp) !== "string"
+                    typeof(req.body.expiryTimestamp) !== "string" ||
+
+                    req.body.token == null ||
+                    typeof(req.body.token) !== "string"
                 ) {
                     res.status(400).json({
-                        msg: "Invalid request body (pr/maxFee/expiryTimestamp)"
+                        msg: "Invalid request body (pr/maxFee/expiryTimestamp/token)"
+                    });
+                    return;
+                }
+
+                if(!this.allowedTokens.has(req.body.token)) {
+                    res.status(400).json({
+                        msg: "Invalid request body (token)"
                     });
                     return;
                 }
@@ -495,14 +494,19 @@ class ToBtcLnAbs<T extends SwapData> implements SwapHandler  {
 
                 const swapFee = amountBD.mul(LN_FEE_PPM).div(new BN(1000000)).add(LN_BASE_FEE);
 
+                const useToken = this.swapContract.toTokenAddress(req.body.token);
 
-                const total = amountBD.add(maxFeeBD).add(swapFee);
+                const maxFeeInToken = await this.swapPricing.getFromBtcSwapAmount(maxFeeBD, useToken);
+                const swapFeeInToken = await this.swapPricing.getFromBtcSwapAmount(swapFee, useToken);
+                const amountInToken = await this.swapPricing.getFromBtcSwapAmount(amountBD, useToken);
+
+                const total = amountInToken.add(maxFeeInToken).add(swapFeeInToken);
 
                 const payObject: T = this.swapContract.createSwapData(
                     SwapType.HTLC,
                     null,
                     this.swapContract.getAddress(),
-                    this.WBTC_ADDRESS,
+                    useToken,
                     total,
                     parsedPR.tagsObject.payment_hash,
                     expiryTimestamp,
@@ -513,7 +517,7 @@ class ToBtcLnAbs<T extends SwapData> implements SwapHandler  {
 
                 const sigData = await this.swapContract.getClaimInitSignature(payObject, this.nonce);
 
-                const createdSwap = new ToBtcLnSwapAbs<T>(req.body.pr, swapFee, new BN(sigData.timeout));
+                const createdSwap = new ToBtcLnSwapAbs<T>(req.body.pr, swapFee, maxFeeBD, new BN(sigData.timeout));
                 createdSwap.data = payObject;
 
                 await this.storageManager.saveData(Buffer.from(parsedPR.tagsObject.payment_hash, "hex"), createdSwap);
@@ -522,7 +526,8 @@ class ToBtcLnAbs<T extends SwapData> implements SwapHandler  {
                     code: 20000,
                     msg: "Success",
                     data: {
-                        swapFee: swapFee.toString(10),
+                        maxFee: maxFeeInToken.toString(10),
+                        swapFee: swapFeeInToken.toString(10),
                         total: total.toString(10),
                         confidence: obj.route.confidence/1000000,
                         address: this.swapContract.getAddress(),
@@ -674,7 +679,7 @@ class ToBtcLnAbs<T extends SwapData> implements SwapHandler  {
         this.subscribeToEvents();
     }
 
-    getInfo(): { swapFeePPM: number, swapBaseFee: number, min: number, max: number, data?: any } {
+    getInfo(): { swapFeePPM: number, swapBaseFee: number, min: number, max: number, data?: any, tokens: string[] } {
         return {
             swapFeePPM: LN_FEE_PPM.toNumber(),
             swapBaseFee: LN_BASE_FEE.toNumber(),
@@ -683,7 +688,8 @@ class ToBtcLnAbs<T extends SwapData> implements SwapHandler  {
             data: {
                 minCltv: MIN_LNSEND_CTLV.toNumber(),
                 minTimestampCltv: MIN_LNSEND_TS_DELTA.toNumber()
-            }
+            },
+            tokens: Array.from<string>(this.allowedTokens)
         };
     }
 

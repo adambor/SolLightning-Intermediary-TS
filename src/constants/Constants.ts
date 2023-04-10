@@ -17,6 +17,8 @@ export const NETWORK_FEE_MULTIPLIER_PPM = new BN(1500000);
 //Solana
 export const MAX_SOL_SKEW = 10*60; //How long to wait to refund back the order after its expiry
 export const WBTC_ADDRESS = new PublicKey(process.env.WBTC_ADDRESS);
+export const USDC_ADDRESS = process.env.USDC_ADDRESS==null ? null : new PublicKey(process.env.USDC_ADDRESS);
+export const USDT_ADDRESS = process.env.USDT_ADDRESS==null ? null : new PublicKey(process.env.USDT_ADDRESS);
 
 //Authorizations
 export const AUTHORIZATION_TIMEOUT = 10*60;

@@ -1,5 +1,13 @@
 
 import {Express} from "express";
+import SwapData from "./SwapData";
+import StorageManager from "../storagemanager/StorageManager";
+import {ToBtcSwapAbs} from "./tobtc_abstract/ToBtcSwapAbs";
+import SwapContract from "./SwapContract";
+import ChainEvents from "../events/ChainEvents";
+import SwapNonce from "./SwapNonce";
+import ISwapPrice from "./ISwapPrice";
+import {TokenAddress} from "./TokenAddress";
 
 export enum SwapHandlerType {
     TO_BTC = "TO_BTC",
@@ -13,17 +21,37 @@ export type SwapHandlerInfoType = {
     swapBaseFee: number,
     min: number,
     max: number,
-    data?: any
+    tokens: string[],
+    data?: any,
 };
 
-interface SwapHandler {
+abstract class SwapHandler<V extends StorageObject, T extends SwapData> {
 
-    readonly type: SwapHandlerType;
+    abstract readonly type: SwapHandlerType;
 
-    init(): Promise<void>;
-    startWatchdog(): Promise<void>;
-    startRestServer(restServer: Express): void;
-    getInfo(): SwapHandlerInfoType;
+    readonly storageManager: StorageManager<V>;
+    readonly path: string;
+
+    readonly swapContract: SwapContract<T>;
+    readonly chainEvents: ChainEvents<T>;
+    readonly nonce: SwapNonce;
+    readonly allowedTokens: Set<string>;
+    readonly swapPricing: ISwapPrice;
+
+    protected constructor(storageDirectory: string, path: string, swapContract: SwapContract<T>, chainEvents: ChainEvents<T>, swapNonce: SwapNonce, allowedTokens: TokenAddress[], swapPricing: ISwapPrice) {
+        this.storageManager = new StorageManager<V>(storageDirectory);
+        this.swapContract = swapContract;
+        this.chainEvents = chainEvents;
+        this.nonce = swapNonce;
+        this.path = path;
+        this.allowedTokens = new Set<string>(allowedTokens.map(e => e.toString()));
+        this.swapPricing = swapPricing;
+    }
+
+    abstract init(): Promise<void>;
+    abstract startWatchdog(): Promise<void>;
+    abstract startRestServer(restServer: Express): void;
+    abstract getInfo(): SwapHandlerInfoType;
 
 }
 

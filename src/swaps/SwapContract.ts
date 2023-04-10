@@ -57,6 +57,8 @@ interface SwapContract<T extends SwapData> {
     getAddress(): string;
     isValidAddress(address: string): boolean;
 
+    toTokenAddress(address: string): TokenAddress;
+
 }
 
 export default SwapContract;

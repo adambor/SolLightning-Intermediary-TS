@@ -360,7 +360,7 @@ class SolanaSwapProgram implements SwapContract<SolanaSwapData> {
             escrowNonce,
             confirmations,
             payOut,
-            SolanaSwapProgram.typeToKind(type),
+            type==null ? null : SolanaSwapProgram.typeToKind(type),
             null,
             null
         );
@@ -597,6 +597,10 @@ class SolanaSwapProgram implements SwapContract<SolanaSwapData> {
         } catch (e) {
             return false;
         }
+    }
+
+    toTokenAddress(address: string): TokenAddress {
+        return new PublicKey(address);
     }
 
 }

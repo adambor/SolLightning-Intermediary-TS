@@ -1,40 +1,48 @@
-import ISwapPrice from "../swaps/ISwapPrice";
 import * as BN from "bn.js";
 import {TokenAddress} from "../swaps/TokenAddress";
 import {PublicKey} from "@solana/web3.js";
 import fetch, {Response} from "cross-fetch";
+import ISwapPrice from "../swaps/ISwapPrice";
 
-const COINS_MAP: {
-    [address: string]: {
-        coinId: string,
-        decimals: number
-    }
-} = {
-    "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v": {
-        coinId: "usd-coin",
-        decimals: 6
-    },
-    "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB": {
-        coinId: "tether",
-        decimals: 6
-    },
-    "So11111111111111111111111111111111111111112": {
-        coinId: "solana",
-        decimals: 9
-    },
-    "Ag6gw668H9PLQFyP482whvGDoAseBWfgs5AfXCAK3aMj": {
-        coinId: "wrapped-bitcoin",
-        decimals: 8
-    }
-};
+const CACHE_DURATION = 5000;
 
-class CoinGeckoSwapPrice extends ISwapPrice {
+class CoinGeckoSwapPrice implements ISwapPrice {
+
+    COINS_MAP: {
+        [address: string]: {
+            coinId: string,
+            decimals: number
+        }
+    };
 
     url: string;
+    cache: {
+        [coinId: string]: {
+            price: BN,
+            expiry: number
+        }
+    } = {};
 
-    constructor(maxAllowedFeeDiffPPM: BN, url?: string) {
-        super(maxAllowedFeeDiffPPM);
+    constructor(url?: string, usdcAddress?: string, usdtAddress?: string, solAddress?: string, wbtcAddress?: string) {
         this.url = url || "https://api.coingecko.com/api/v3";
+        this.COINS_MAP = {
+            [usdcAddress]: {
+                coinId: "usd-coin",
+                decimals: 6
+            },
+            [usdtAddress]: {
+                coinId: "tether",
+                decimals: 6
+            },
+            [solAddress]: {
+                coinId: "solana",
+                decimals: 9
+            },
+            [wbtcAddress]: {
+                coinId: "wrapped-bitcoin",
+                decimals: 8
+            }
+        };
     }
 
     /**
@@ -43,6 +51,11 @@ class CoinGeckoSwapPrice extends ISwapPrice {
      * @param coinId
      */
     async getPrice(coinId: string): Promise<BN> {
+
+        const cachedValue = this.cache[coinId];
+        if(cachedValue!=null && cachedValue.expiry>Date.now()) {
+            return cachedValue.price;
+        }
 
         const response: Response = await fetch(this.url+"/simple/price?ids="+coinId+"&vs_currencies=sats&precision=3", {
             method: "GET",
@@ -63,25 +76,24 @@ class CoinGeckoSwapPrice extends ISwapPrice {
 
         const amt: number = jsonBody[coinId].sats;
 
-        return new BN(amt*1000);
+        const result = new BN(amt*1000);
 
+        this.cache[coinId] = {
+            price: result,
+            expiry: Date.now()+CACHE_DURATION
+        };
+
+        return result;
     }
 
     async getFromBtcSwapAmount(fromAmount: BN, toToken: TokenAddress): Promise<BN> {
-        let tokenAddress: string;
-        if(toToken instanceof PublicKey) {
-            tokenAddress = toToken.toBase58();
-        } else {
-            tokenAddress = toToken.toString();
-        }
+        let tokenAddress: string = toToken.toString();
 
-        const coin = COINS_MAP[tokenAddress];
+        const coin = this.COINS_MAP[tokenAddress];
 
         if(coin==null) throw new Error("Token not found");
 
         const price = await this.getPrice(coin.coinId);
-
-        console.log("Swap price: ", price.toString(10));
 
         return fromAmount
             .mul(new BN(10).pow(new BN(coin.decimals)))
@@ -90,14 +102,9 @@ class CoinGeckoSwapPrice extends ISwapPrice {
     }
 
     async getToBtcSwapAmount(fromAmount: BN, fromToken: TokenAddress): Promise<BN> {
-        let tokenAddress: string;
-        if(fromToken instanceof PublicKey) {
-            tokenAddress = fromToken.toBase58();
-        } else {
-            tokenAddress = fromToken.toString();
-        }
+        let tokenAddress: string = fromToken.toString();
 
-        const coin = COINS_MAP[tokenAddress];
+        const coin = this.COINS_MAP[tokenAddress];
 
         if(coin==null) throw new Error("Token not found");
 

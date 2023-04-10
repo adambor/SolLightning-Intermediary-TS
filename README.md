@@ -9,13 +9,9 @@ This software is made to be used in conjunction with [client SDK](https://github
 **NOTE: This implementation is hardcoded to use bitcoin testnet3 and solana devnet, as it is still in alpha stage and is not safe to use for live systems. MAY contain bugs and uncovered edge-cases**
 
 ## REST API
-This app starts an http rest api server on several separate ports:
-* 4000: For BTCLN -> Solana swap handling
-* 4001: For Solana -> BTCLN swap handling
-* 4002: For BTC -> Solana swap handling
-* 4003: For Solana -> BTC swap handling
+This app starts an http rest api server on port 4000.
 
-Be sure to open those ports so client SDK can call the REST APIs.
+**NOTE:** Be sure to open this ports so client SDK can call the REST API.
 
 ## Requirements
 * bitcoind node
@@ -68,9 +64,9 @@ Instructions available [here](https://github.com/adambor/BTCRelay-Sol-Offchain).
 4. Rename _.env file to .env
 5. Generate a new solana keypair: ```npm run genKey```
 6. Airdrop some devnet tokens to your newly generated solana wallet: ```npm run airdrop```
-7. Create the WBTC token on devnet: ```npm run createToken```
-8. Mint some WBTC token to your new keypair: ```npm run mint <amount to mint in satoshis>```
-9. You can also mint some WBTC tokens to your phantom wallet: ```npm run mint <amount to mint in satoshis> <wallet address>```
-10. Deposit your WBTC to the program ```npm run deposit <amount to deposit in satoshis>```
+7. Create the WBTC, USDC and USDT tokens on devnet: ```npm run createToken```
+8. Mint some WBTC/USDC/USDT token to your new keypair: ```npm run mint <WBTC/USDC/USDT> <amount to mint in satoshis>```
+9. You can also mint some WBTC/USDC/USDT tokens to your phantom wallet: ```npm run mint <WBTC/USDC/USDT> <amount to mint in satoshis> <wallet address>```
+10. Deposit your WBTC/USDC/USDT to the program ```npm run deposit <WBTC/USDC/USDT> <amount to deposit in satoshis>```
 11. Be sure that bitcoind, lnd and btcrelay are running before starting the app.
 12. Run the app with: ```npm start```

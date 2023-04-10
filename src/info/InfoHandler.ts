@@ -23,9 +23,9 @@ class InfoHandler<T extends SwapData> {
     readonly swapContract: SwapContract<T>;
     readonly path: string;
 
-    readonly swapHandlers: SwapHandler[];
+    readonly swapHandlers: SwapHandler<any, any>[];
 
-    constructor(swapContract: SwapContract<T>, path: string, swapHandlers: SwapHandler[]) {
+    constructor(swapContract: SwapContract<T>, path: string, swapHandlers: SwapHandler<any, any>[]) {
         this.swapContract = swapContract;
         this.path = path;
         this.swapHandlers = swapHandlers;

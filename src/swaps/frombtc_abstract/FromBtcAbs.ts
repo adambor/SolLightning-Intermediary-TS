@@ -26,6 +26,7 @@ import SwapType from "../SwapType";
 import ClaimEvent from "../../events/types/ClaimEvent";
 import RefundEvent from "../../events/types/RefundEvent";
 import SwapHandler, {SwapHandlerType} from "../SwapHandler";
+import ISwapPrice from "../ISwapPrice";
 
 const CONFIRMATIONS = 1;
 const SWAP_CSV_DELTA = 144; //A day
@@ -33,26 +34,12 @@ const SWAP_TS_CSV_DELTA = new BN(SWAP_CSV_DELTA).mul(BITCOIN_BLOCKTIME.div(SAFET
 
 const REFUND_CHECK_INTERVAL = 5*60*1000;
 
-class FromBtcAbs<T extends SwapData> implements SwapHandler  {
+class FromBtcAbs<T extends SwapData> extends SwapHandler<FromBtcSwapAbs<T>, T> {
 
     readonly type = SwapHandlerType.FROM_BTC;
 
-    storageManager: StorageManager<FromBtcSwapAbs<T>>;
-
-    readonly path: string;
-
-    readonly swapContract: SwapContract<T>;
-    readonly chainEvents: ChainEvents<T>;
-    readonly nonce: SwapNonce;
-    readonly WBTC_ADDRESS: TokenAddress;
-
-    constructor(storageDirectory: string, path: string, swapContract: SwapContract<T>, chainEvents: ChainEvents<T>, swapNonce: SwapNonce, WBTC_ADDRESS: TokenAddress) {
-        this.storageManager = new StorageManager<FromBtcSwapAbs<T>>(storageDirectory);
-        this.swapContract = swapContract;
-        this.chainEvents = chainEvents;
-        this.nonce = swapNonce;
-        this.WBTC_ADDRESS = WBTC_ADDRESS;
-        this.path = path;
+    constructor(storageDirectory: string, path: string, swapContract: SwapContract<T>, chainEvents: ChainEvents<T>, swapNonce: SwapNonce, allowedTokens: TokenAddress[], swapPricing: ISwapPrice) {
+        super(storageDirectory, path, swapContract, chainEvents, swapNonce, allowedTokens, swapPricing);
     }
 
     async checkPastSwaps() {
@@ -165,11 +152,23 @@ class FromBtcAbs<T extends SwapData> implements SwapHandler  {
             /**
              * address: string              solana address of the recipient
              * amount: string               amount (in sats) of the invoice
+             * token: string                Desired token to use
              */
 
             if(
                 req.body==null ||
 
+                req.body.token==null ||
+                typeof(req.body.token)!=="string" ||
+                !this.allowedTokens.has(req.body.token)
+            ) {
+                res.status(400).json({
+                    msg: "Invalid request body (token)"
+                });
+                return;
+            }
+
+            if(
                 req.body.address==null ||
                 typeof(req.body.address)!=="string"
             ) {
@@ -227,16 +226,22 @@ class FromBtcAbs<T extends SwapData> implements SwapHandler  {
                 return;
             }
 
-            const balance = await this.swapContract.getBalance(this.WBTC_ADDRESS);
+            const useToken = this.swapContract.toTokenAddress(req.body.token);
 
-            if(amountBD.gt(balance)) {
+            const swapFee = CHAIN_BASE_FEE.add(amountBD.mul(CHAIN_FEE_PPM).div(new BN(1000000)));
+
+            const amountInToken = await this.swapPricing.getFromBtcSwapAmount(amountBD, useToken);
+            const swapFeeInToken = await this.swapPricing.getFromBtcSwapAmount(swapFee, useToken);
+
+            const balance = await this.swapContract.getBalance(useToken);
+
+            if(amountInToken.sub(swapFeeInToken).gt(balance)) {
                 res.status(400).json({
                     msg: "Not enough liquidity"
                 });
                 return;
             }
 
-            const swapFee = CHAIN_BASE_FEE.add(amountBD.mul(CHAIN_FEE_PPM).div(new BN(1000000)));
 
             const {address: receiveAddress} = await lncli.createChainAddress({
                 lnd: LND,
@@ -256,8 +261,8 @@ class FromBtcAbs<T extends SwapData> implements SwapHandler  {
                 SwapType.CHAIN,
                 this.swapContract.getAddress(),
                 req.body.address,
-                this.WBTC_ADDRESS,
-                amountBD.sub(swapFee),
+                useToken,
+                amountInToken.sub(swapFeeInToken),
                 paymentHash.toString("hex"),
                 currentTimestamp.add(expiryTimeout),
                 new BN(0),
@@ -279,7 +284,8 @@ class FromBtcAbs<T extends SwapData> implements SwapHandler  {
                 data: {
                     btcAddress: receiveAddress,
                     address: this.swapContract.getAddress(),
-                    swapFee: swapFee.toString(10),
+                    swapFee: swapFeeInToken.toString(10),
+                    total: amountInToken.sub(swapFeeInToken).toString(10),
                     data: data.serialize(),
                     nonce: sigData.nonce,
                     prefix: sigData.prefix,
@@ -313,7 +319,7 @@ class FromBtcAbs<T extends SwapData> implements SwapHandler  {
         this.subscribeToEvents();
     }
 
-    getInfo(): { swapFeePPM: number, swapBaseFee: number, min: number, max: number, data?: any } {
+    getInfo(): { swapFeePPM: number, swapBaseFee: number, min: number, max: number, data?: any, tokens: string[] } {
         return {
             swapFeePPM: CHAIN_FEE_PPM.toNumber(),
             swapBaseFee: CHAIN_BASE_FEE.toNumber(),
@@ -324,7 +330,8 @@ class FromBtcAbs<T extends SwapData> implements SwapHandler  {
 
                 cltv: SWAP_CSV_DELTA,
                 timestampCltv: SWAP_TS_CSV_DELTA.toNumber()
-            }
+            },
+            tokens: Array.from<string>(this.allowedTokens)
         };
     }
 }

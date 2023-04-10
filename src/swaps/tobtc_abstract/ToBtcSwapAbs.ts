@@ -20,6 +20,7 @@ export class ToBtcSwapAbs<T extends SwapData> extends Lockable implements Storag
     readonly address: string;
     readonly amount: BN;
     readonly swapFee: BN;
+    readonly networkFee: BN;
     readonly nonce: BN;
     readonly preferedConfirmationTarget: number;
     readonly signatureExpiry: BN;
@@ -28,16 +29,17 @@ export class ToBtcSwapAbs<T extends SwapData> extends Lockable implements Storag
 
     data: T;
 
-    constructor(address: string, amount: BN, swapFee: BN, nonce: BN, preferedConfirmationTarget: number, signatureExpiry: BN);
+    constructor(address: string, amount: BN, swapFee: BN, networkFee: BN, nonce: BN, preferedConfirmationTarget: number, signatureExpiry: BN);
     constructor(obj: any);
 
-    constructor(prOrObj: string | any, amount?: BN, swapFee?: BN, nonce?: BN, preferedConfirmationTarget?: number, signatureExpiry?: BN) {
+    constructor(prOrObj: string | any, amount?: BN, swapFee?: BN, networkFee?: BN, nonce?: BN, preferedConfirmationTarget?: number, signatureExpiry?: BN) {
         super();
         if(typeof(prOrObj)==="string") {
             this.state = ToBtcSwapState.SAVED;
             this.address = prOrObj;
             this.amount = amount;
             this.swapFee = swapFee;
+            this.networkFee = networkFee;
             this.nonce = nonce;
             this.preferedConfirmationTarget = preferedConfirmationTarget;
             this.signatureExpiry = signatureExpiry;
@@ -46,6 +48,7 @@ export class ToBtcSwapAbs<T extends SwapData> extends Lockable implements Storag
             this.address = prOrObj.address;
             this.amount = new BN(prOrObj.amount);
             this.swapFee = new BN(prOrObj.swapFee);
+            this.networkFee = new BN(prOrObj.networkFee);
             this.nonce = new BN(prOrObj.nonce);
             this.preferedConfirmationTarget = prOrObj.preferedConfirmationTarget;
             this.signatureExpiry = prOrObj.signatureExpiry==null ? null : new BN(prOrObj.signatureExpiry);
@@ -63,6 +66,7 @@ export class ToBtcSwapAbs<T extends SwapData> extends Lockable implements Storag
             address: this.address,
             amount: this.amount.toString(10),
             swapFee: this.swapFee.toString(10),
+            networkFee: this.networkFee.toString(10),
 
             nonce: this.nonce.toString(10),
             preferedConfirmationTarget: this.preferedConfirmationTarget,
