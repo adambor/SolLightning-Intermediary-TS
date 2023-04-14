@@ -105,55 +105,69 @@ class ToBtcAbs<T extends SwapData> extends SwapHandler<ToBtcSwapAbs<T>, T>  {
 
     async checkBtcTxs() {
 
+        const removeTxIds = [];
+
         for(let txId in this.activeSubscriptions) {
-            const payment: ToBtcSwapAbs<T> = this.activeSubscriptions[txId];
-            let tx;
             try {
-                tx = await new Promise((resolve, reject) => {
-                    BtcRPC.getRawTransaction(txId, 1, (err, info) => {
-                        if(err) {
-                            reject(err);
-                            return;
-                        }
-                        resolve(info.result);
+                const payment: ToBtcSwapAbs<T> = this.activeSubscriptions[txId];
+                let tx;
+                try {
+                    tx = await new Promise((resolve, reject) => {
+                        BtcRPC.getRawTransaction(txId, 1, (err, info) => {
+                            if(err) {
+                                reject(err);
+                                return;
+                            }
+                            resolve(info.result);
+                        });
                     });
-                });
+                } catch (e) {
+                    console.error(e);
+                }
+
+                if(tx==null) {
+                    continue;
+                }
+
+                if(tx.confirmations==null) tx.confirmations = 0;
+
+                if(tx.confirmations<payment.data.getConfirmations()) {
+                    //not enough confirmations
+                    continue;
+                }
+
+                const outputScript = bitcoin.address.toOutputScript(payment.address, BITCOIN_NETWORK);
+
+                console.log("[To BTC: Bitcoin.CheckTransactions] TX vouts: ", tx.vout);
+                console.log("[To BTC: Bitcoin.CheckTransactions] Required output script: ", outputScript.toString("hex"));
+                console.log("[To BTC: Bitcoin.CheckTransactions] Required amount: ", payment.amount.toString(10));
+
+                const vout = tx.vout.find(e => new BN(e.value*100000000).eq(payment.amount) && Buffer.from(e.scriptPubKey.hex, "hex").equals(outputScript));
+
+                if(vout==null) {
+                    console.error("Cannot find vout!!");
+                    continue;
+                }
+
+                const success = await this.processPaymentResult(tx, payment, vout.n);
+
+                console.log("[To BTC: Bitcoin.CheckTransactions] Claim processed: ", txId);
+
+                if(success) removeTxIds.push(txId);
             } catch (e) {
                 console.error(e);
             }
-
-            if(tx==null) {
-                continue;
-            }
-
-            if(tx.confirmations==null) tx.confirmations = 0;
-
-            if(tx.confirmations<payment.data.getConfirmations()) {
-                //not enough confirmations
-                continue;
-            }
-
-            const outputScript = bitcoin.address.toOutputScript(payment.address, BITCOIN_NETWORK);
-
-            console.log("[To BTC: Bitcoin.CheckTransactions] TX vouts: ", tx.vout);
-            console.log("[To BTC: Bitcoin.CheckTransactions] Required output script: ", outputScript.toString("hex"));
-            console.log("[To BTC: Bitcoin.CheckTransactions] Required amount: ", payment.amount.toString(10));
-
-            const vout = tx.vout.find(e => new BN(e.value*100000000).eq(payment.amount) && Buffer.from(e.scriptPubKey.hex, "hex").equals(outputScript));
-
-            if(vout==null) {
-                console.error("Cannot find vout!!");
-                continue;
-            }
-
-            const success = await this.processPaymentResult(tx, payment, vout.n);
-
-            if(success) delete this.activeSubscriptions[txId];
         }
 
+        removeTxIds.forEach(txId => {
+            console.log("[ToBtc: Bitcoin.CheckTransactions] Removing from txId subscriptions: ", txId);
+            delete this.activeSubscriptions[txId];
+        });
+
+        if(removeTxIds.length>0) console.log("[ToBtc: Bitcoin.CheckTransactions] Still subscribed to: ", Object.keys(this.activeSubscriptions));
     }
 
-    subscribeToPayment(payment) {
+    subscribeToPayment(payment: ToBtcSwapAbs<T>) {
         this.activeSubscriptions[payment.txId] = payment;
     }
 

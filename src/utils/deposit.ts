@@ -1,10 +1,10 @@
 import * as dotenv from "dotenv";
 dotenv.config();
 
-import {USDC_ADDRESS, USDT_ADDRESS, WBTC_ADDRESS} from "../constants/Constants";
+import {USDC_ADDRESS, USDT_ADDRESS, WBTC_ADDRESS, WSOL_ADDRESS} from "../constants/Constants";
 import AnchorSigner from "../chains/solana/signer/AnchorSigner";
 import {getAssociatedTokenAddress, TOKEN_PROGRAM_ID} from "@solana/spl-token";
-import {BN} from "@project-serum/anchor";
+import {BN} from "@coral-xyz/anchor";
 import {SystemProgram, SYSVAR_RENT_PUBKEY} from "@solana/web3.js";
 import SolanaSwapProgram from "../chains/solana/swaps/SolanaSwapProgram";
 import SolanaBtcRelay from "../chains/solana/btcrelay/SolanaBtcRelay";
@@ -21,6 +21,9 @@ async function deposit(amount: number, token: string) {
             break;
         case "USDT":
             useToken = USDT_ADDRESS;
+            break;
+        case "WSOL":
+            useToken = WSOL_ADDRESS;
             break;
         default:
             return false;

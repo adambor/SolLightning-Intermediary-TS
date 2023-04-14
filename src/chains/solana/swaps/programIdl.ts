@@ -92,11 +92,6 @@ export const programIdl = {
                     "isSigner": false
                 },
                 {
-                    "name": "systemProgram",
-                    "isMut": false,
-                    "isSigner": false
-                },
-                {
                     "name": "rent",
                     "isMut": false,
                     "isSigner": false
@@ -218,15 +213,6 @@ export const programIdl = {
                     "type": "u64"
                 },
                 {
-                    "name": "signature",
-                    "type": {
-                        "array": [
-                            "u8",
-                            64
-                        ]
-                    }
-                },
-                {
                     "name": "escrowNonce",
                     "type": "u64"
                 },
@@ -338,15 +324,6 @@ export const programIdl = {
                     "type": "u64"
                 },
                 {
-                    "name": "signature",
-                    "type": {
-                        "array": [
-                            "u8",
-                            64
-                        ]
-                    }
-                },
-                {
                     "name": "payOut",
                     "type": "bool"
                 },
@@ -362,47 +339,6 @@ export const programIdl = {
             ]
         },
         {
-            "name": "offererRefundPayOut",
-            "accounts": [
-                {
-                    "name": "offerer",
-                    "isMut": true,
-                    "isSigner": true
-                },
-                {
-                    "name": "initializer",
-                    "isMut": true,
-                    "isSigner": false
-                },
-                {
-                    "name": "vault",
-                    "isMut": true,
-                    "isSigner": false
-                },
-                {
-                    "name": "vaultAuthority",
-                    "isMut": false,
-                    "isSigner": false
-                },
-                {
-                    "name": "initializerDepositTokenAccount",
-                    "isMut": true,
-                    "isSigner": false
-                },
-                {
-                    "name": "escrowState",
-                    "isMut": true,
-                    "isSigner": false
-                },
-                {
-                    "name": "tokenProgram",
-                    "isMut": false,
-                    "isSigner": false
-                }
-            ],
-            "args": []
-        },
-        {
             "name": "offererRefund",
             "accounts": [
                 {
@@ -416,181 +352,51 @@ export const programIdl = {
                     "isSigner": false
                 },
                 {
-                    "name": "userData",
-                    "isMut": true,
-                    "isSigner": false
-                },
-                {
                     "name": "escrowState",
                     "isMut": true,
-                    "isSigner": false
-                }
-            ],
-            "args": []
-        },
-        {
-            "name": "offererRefundWithSignaturePayOut",
-            "accounts": [
-                {
-                    "name": "offerer",
-                    "isMut": true,
-                    "isSigner": true
-                },
-                {
-                    "name": "initializer",
-                    "isMut": true,
-                    "isSigner": false
-                },
-                {
-                    "name": "claimer",
-                    "isMut": false,
                     "isSigner": false
                 },
                 {
                     "name": "vault",
                     "isMut": true,
-                    "isSigner": false
+                    "isSigner": false,
+                    "isOptional": true
                 },
                 {
                     "name": "vaultAuthority",
                     "isMut": false,
-                    "isSigner": false
+                    "isSigner": false,
+                    "isOptional": true
                 },
                 {
                     "name": "initializerDepositTokenAccount",
                     "isMut": true,
-                    "isSigner": false
-                },
-                {
-                    "name": "escrowState",
-                    "isMut": true,
-                    "isSigner": false
+                    "isSigner": false,
+                    "isOptional": true
                 },
                 {
                     "name": "tokenProgram",
                     "isMut": false,
-                    "isSigner": false
-                },
-                {
-                    "name": "ixSysvar",
-                    "isMut": false,
-                    "isSigner": false
-                }
-            ],
-            "args": [
-                {
-                    "name": "authExpiry",
-                    "type": "u64"
-                },
-                {
-                    "name": "signature",
-                    "type": {
-                        "array": [
-                            "u8",
-                            64
-                        ]
-                    }
-                }
-            ]
-        },
-        {
-            "name": "offererRefundWithSignature",
-            "accounts": [
-                {
-                    "name": "offerer",
-                    "isMut": true,
-                    "isSigner": true
-                },
-                {
-                    "name": "initializer",
-                    "isMut": true,
-                    "isSigner": false
-                },
-                {
-                    "name": "claimer",
-                    "isMut": false,
-                    "isSigner": false
+                    "isSigner": false,
+                    "isOptional": true
                 },
                 {
                     "name": "userData",
                     "isMut": true,
-                    "isSigner": false
-                },
-                {
-                    "name": "escrowState",
-                    "isMut": true,
-                    "isSigner": false
+                    "isSigner": false,
+                    "isOptional": true
                 },
                 {
                     "name": "ixSysvar",
                     "isMut": false,
-                    "isSigner": false
+                    "isSigner": false,
+                    "isOptional": true
                 }
             ],
             "args": [
                 {
                     "name": "authExpiry",
                     "type": "u64"
-                },
-                {
-                    "name": "signature",
-                    "type": {
-                        "array": [
-                            "u8",
-                            64
-                        ]
-                    }
-                }
-            ]
-        },
-        {
-            "name": "claimerClaimPayOut",
-            "accounts": [
-                {
-                    "name": "signer",
-                    "isMut": true,
-                    "isSigner": true
-                },
-                {
-                    "name": "offerer",
-                    "isMut": false,
-                    "isSigner": false
-                },
-                {
-                    "name": "claimerReceiveTokenAccount",
-                    "isMut": true,
-                    "isSigner": false
-                },
-                {
-                    "name": "escrowState",
-                    "isMut": true,
-                    "isSigner": false
-                },
-                {
-                    "name": "vault",
-                    "isMut": true,
-                    "isSigner": false
-                },
-                {
-                    "name": "vaultAuthority",
-                    "isMut": false,
-                    "isSigner": false
-                },
-                {
-                    "name": "tokenProgram",
-                    "isMut": false,
-                    "isSigner": false
-                },
-                {
-                    "name": "ixSysvar",
-                    "isMut": false,
-                    "isSigner": false
-                }
-            ],
-            "args": [
-                {
-                    "name": "secret",
-                    "type": "bytes"
                 }
             ]
         },
@@ -603,34 +409,50 @@ export const programIdl = {
                     "isSigner": true
                 },
                 {
-                    "name": "offerer",
-                    "isMut": false,
-                    "isSigner": false
-                },
-                {
-                    "name": "claimer",
-                    "isMut": false,
-                    "isSigner": false
-                },
-                {
-                    "name": "userData",
-                    "isMut": true,
-                    "isSigner": false
-                },
-                {
                     "name": "escrowState",
                     "isMut": true,
-                    "isSigner": false
-                },
-                {
-                    "name": "systemProgram",
-                    "isMut": false,
                     "isSigner": false
                 },
                 {
                     "name": "ixSysvar",
                     "isMut": false,
                     "isSigner": false
+                },
+                {
+                    "name": "claimerReceiveTokenAccount",
+                    "isMut": true,
+                    "isSigner": false,
+                    "isOptional": true
+                },
+                {
+                    "name": "vault",
+                    "isMut": true,
+                    "isSigner": false,
+                    "isOptional": true
+                },
+                {
+                    "name": "vaultAuthority",
+                    "isMut": false,
+                    "isSigner": false,
+                    "isOptional": true
+                },
+                {
+                    "name": "tokenProgram",
+                    "isMut": false,
+                    "isSigner": false,
+                    "isOptional": true
+                },
+                {
+                    "name": "userData",
+                    "isMut": true,
+                    "isSigner": false,
+                    "isOptional": true
+                },
+                {
+                    "name": "data",
+                    "isMut": true,
+                    "isSigner": false,
+                    "isOptional": true
                 }
             ],
             "args": [
@@ -639,103 +461,6 @@ export const programIdl = {
                     "type": "bytes"
                 }
             ]
-        },
-        {
-            "name": "claimerClaimPayOutWithExtData",
-            "accounts": [
-                {
-                    "name": "signer",
-                    "isMut": true,
-                    "isSigner": true
-                },
-                {
-                    "name": "offerer",
-                    "isMut": false,
-                    "isSigner": false
-                },
-                {
-                    "name": "claimerReceiveTokenAccount",
-                    "isMut": true,
-                    "isSigner": false
-                },
-                {
-                    "name": "escrowState",
-                    "isMut": true,
-                    "isSigner": false
-                },
-                {
-                    "name": "vault",
-                    "isMut": true,
-                    "isSigner": false
-                },
-                {
-                    "name": "data",
-                    "isMut": true,
-                    "isSigner": false
-                },
-                {
-                    "name": "vaultAuthority",
-                    "isMut": false,
-                    "isSigner": false
-                },
-                {
-                    "name": "tokenProgram",
-                    "isMut": false,
-                    "isSigner": false
-                },
-                {
-                    "name": "ixSysvar",
-                    "isMut": false,
-                    "isSigner": false
-                }
-            ],
-            "args": []
-        },
-        {
-            "name": "claimerClaimWithExtData",
-            "accounts": [
-                {
-                    "name": "signer",
-                    "isMut": true,
-                    "isSigner": true
-                },
-                {
-                    "name": "offerer",
-                    "isMut": false,
-                    "isSigner": false
-                },
-                {
-                    "name": "claimer",
-                    "isMut": false,
-                    "isSigner": false
-                },
-                {
-                    "name": "userData",
-                    "isMut": true,
-                    "isSigner": false
-                },
-                {
-                    "name": "escrowState",
-                    "isMut": true,
-                    "isSigner": false
-                },
-                {
-                    "name": "data",
-                    "isMut": true,
-                    "isSigner": false
-                },
-                {
-                    "name": "systemProgram",
-                    "isMut": false,
-                    "isSigner": false
-                },
-                {
-                    "name": "ixSysvar",
-                    "isMut": false,
-                    "isSigner": false
-                }
-            ],
-            "args": []
         },
         {
             "name": "initData",
@@ -938,18 +663,6 @@ export const programIdl = {
                     }
                 ]
             }
-        },
-        {
-            "name": "Data",
-            "type": {
-                "kind": "struct",
-                "fields": [
-                    {
-                        "name": "data",
-                        "type": "bytes"
-                    }
-                ]
-            }
         }
     ],
     "events": [
@@ -1107,6 +820,6 @@ export const programIdl = {
         }
     ],
     "metadata": {
-        "address": "6k1kyCtt2hTYHqS8s1QdkhY7mfFdFeYWfrzLjrzQRyaX"
+        "address": "BpVLd9ViKMbVnHhKJQbf5TBYGvkzTCTiwig8QffHvCmW"
     }
 };

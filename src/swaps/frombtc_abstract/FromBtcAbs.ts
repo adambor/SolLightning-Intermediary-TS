@@ -29,7 +29,7 @@ import SwapHandler, {SwapHandlerType} from "../SwapHandler";
 import ISwapPrice from "../ISwapPrice";
 
 const CONFIRMATIONS = 1;
-const SWAP_CSV_DELTA = 144; //A day
+const SWAP_CSV_DELTA = 72; //Half a day
 const SWAP_TS_CSV_DELTA = new BN(SWAP_CSV_DELTA).mul(BITCOIN_BLOCKTIME.div(SAFETY_FACTOR));
 
 const REFUND_CHECK_INTERVAL = 5*60*1000;

@@ -1,6 +1,6 @@
 import SwapContract from "../../../swaps/SwapContract";
 import SolanaSwapData from "./SolanaSwapData";
-import {AnchorProvider, BorshCoder, EventParser, Program} from "@project-serum/anchor";
+import {AnchorProvider, BorshCoder, EventParser, Program} from "@coral-xyz/anchor";
 import SwapType from "../../../swaps/SwapType";
 import {TokenAddress} from "../../../swaps/TokenAddress";
 import * as BN from "bn.js";
@@ -191,7 +191,7 @@ class SolanaSwapProgram implements SwapContract<SolanaSwapData> {
             messageBuffers.push(Buffer.alloc(1, 0));
         }
 
-        const messageBuffer = Buffer.concat(messageBuffers);
+        const messageBuffer = createHash("sha256").update(Buffer.concat(messageBuffers)).digest();
         const signature = sign.detached(messageBuffer, this.signer.signer.secretKey);
 
         return Promise.resolve({
@@ -231,7 +231,7 @@ class SolanaSwapProgram implements SwapContract<SolanaSwapData> {
         messageBuffers[8].writeUint16LE(swapData.confirmations || 0);
         messageBuffers[9].writeBigUInt64LE(BigInt(authTimeout));
 
-        const messageBuffer = Buffer.concat(messageBuffers);
+        const messageBuffer = createHash("sha256").update(Buffer.concat(messageBuffers)).digest();
         const signature = sign.detached(messageBuffer, this.signer.signer.secretKey);
 
         return Promise.resolve({
@@ -260,7 +260,7 @@ class SolanaSwapProgram implements SwapContract<SolanaSwapData> {
         messageBuffers[3] = Buffer.from(swapData.paymentHash, "hex");
         messageBuffers[4].writeBigUInt64LE(BigInt(authTimeout));
 
-        const messageBuffer = Buffer.concat(messageBuffers);
+        const messageBuffer = createHash("sha256").update(Buffer.concat(messageBuffers)).digest();
 
         const signature = sign.detached(messageBuffer, this.signer.signer.secretKey);
 
@@ -372,13 +372,17 @@ class SolanaSwapProgram implements SwapContract<SolanaSwapData> {
             .claimerClaim(Buffer.from(secret, "hex"))
             .accounts({
                 signer: this.signer.publicKey,
-                claimer: swapData.intermediary,
-                offerer: swapData.offerer,
-                initializer: swapData.initializer,
-                userData: this.SwapUserVault(swapData.intermediary, swapData.token),
                 escrowState: this.SwapEscrowState(Buffer.from(swapData.paymentHash, "hex")),
-                systemProgram: SystemProgram.programId,
-                ixSysvar: SYSVAR_INSTRUCTIONS_PUBKEY
+                ixSysvar: SYSVAR_INSTRUCTIONS_PUBKEY,
+
+                claimerReceiveTokenAccount: null,
+                vault: null,
+                vaultAuthority: null,
+                tokenProgram: null,
+
+                userData: this.SwapUserVault(swapData.intermediary, swapData.token),
+
+                data: null
             })
             .signers([this.signer.signer])
             .transaction();
@@ -525,17 +529,20 @@ class SolanaSwapProgram implements SwapContract<SolanaSwapData> {
 
         const verifyIx = await this.btcRelay.createVerifyIx(this.signer.signer, merkleProof.reversedTxId, swapData.confirmations, merkleProof.pos, merkleProof.merkle, commitedHeader);
         const claimIx = await this.program.methods
-            .claimerClaimWithExtData()
+            .claimerClaim(Buffer.alloc(0))
             .accounts({
                 signer: this.signer.publicKey,
-                claimer: swapData.intermediary,
-                offerer: swapData.offerer,
-                initializer: swapData.initializer,
-                data: txDataKey.publicKey,
-                userData: this.SwapUserVault(swapData.intermediary, swapData.token),
                 escrowState: this.SwapEscrowState(Buffer.from(swapData.paymentHash, "hex")),
-                systemProgram: SystemProgram.programId,
-                ixSysvar: SYSVAR_INSTRUCTIONS_PUBKEY
+                ixSysvar: SYSVAR_INSTRUCTIONS_PUBKEY,
+
+                claimerReceiveTokenAccount: null,
+                vault: null,
+                vaultAuthority: null,
+                tokenProgram: null,
+
+                userData: this.SwapUserVault(swapData.intermediary, swapData.token),
+
+                data: txDataKey.publicKey
             })
             .signers([this.signer.signer])
             .instruction();
@@ -558,12 +565,20 @@ class SolanaSwapProgram implements SwapContract<SolanaSwapData> {
     async refund(swapData: SolanaSwapData): Promise<boolean> {
 
         let builder = this.program.methods
-            .offererRefund()
+            .offererRefund(new BN(0))
             .accounts({
                 offerer: swapData.offerer,
                 initializer: swapData.initializer,
+                escrowState: this.SwapEscrowState(Buffer.from(swapData.paymentHash, "hex")),
+
+                vault: null,
+                vaultAuthority: null,
+                initializerDepositTokenAccount: null,
+                tokenProgram: null,
+
                 userData: this.SwapUserVault(swapData.offerer, swapData.token),
-                escrowState: this.SwapEscrowState(Buffer.from(swapData.paymentHash, "hex"))
+
+                ixSysvar: null
             });
 
         if(!swapData.payOut) {

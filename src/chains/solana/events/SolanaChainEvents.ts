@@ -1,8 +1,7 @@
 import ChainEvents, {EventListener} from "../../../events/ChainEvents";
 import SolanaSwapData from "../swaps/SolanaSwapData";
 import {Message, PublicKey} from "@solana/web3.js";
-import {AnchorProvider, Event} from "@project-serum/anchor";
-import {IdlEvent} from "@project-serum/anchor/dist/cjs/idl";
+import {AnchorProvider, Event} from "@coral-xyz/anchor";
 import * as fs from "fs/promises";
 import SwapEvent from "../../../events/types/SwapEvent";
 import ClaimEvent from "../../../events/types/ClaimEvent";
@@ -10,6 +9,7 @@ import RefundEvent from "../../../events/types/RefundEvent";
 import InitializeEvent from "../../../events/types/InitializeEvent";
 import SolanaSwapProgram from "../swaps/SolanaSwapProgram";
 import {programIdl} from "../swaps/programIdl";
+import {IdlEvent} from "@coral-xyz/anchor/dist/esm/idl";
 
 
 const BLOCKHEIGHT_FILENAME = "/blockheight.txt";
