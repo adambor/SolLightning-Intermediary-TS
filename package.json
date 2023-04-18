@@ -18,23 +18,21 @@
   "dependencies": {
     "@coral-xyz/anchor": "^0.27.0",
     "@solana/spl-token": "^0.3.7",
-    "@solana/web3.js": "^1.73.2",
-    "bip32": "^4.0.0",
+    "@solana/web3.js": "^1.75.0",
     "bitcoind-rpc": "^0.9.1",
     "bitcoinjs-lib": "^6.1.0",
     "bn.js": "^5.2.1",
-    "bolt11": "^1.4.0",
+    "btcrelay-bitcoind": "^1.0.0",
     "cors": "^2.8.5",
+    "crosslightning-base": "^1.0.0",
+    "crosslightning-intermediary": "^1.0.0",
+    "crosslightning-solana": "^1.0.0",
     "crypto": "^1.0.1",
     "dotenv": "^16.0.3",
     "express": "^4.18.2",
     "lightning": "^6.4.1",
     "ln-service": "^54.4.1",
-    "request": "^2.88.2",
-    "request-promise-native": "^1.0.9",
-    "tiny-secp256k1": "^2.2.1",
-    "tweetnacl": "^1.0.3",
-    "typescript": "^4.9.4"
+    "typescript": "^4.9.5"
   },
   "devDependencies": {
     "@types/node": "^18.15.5"

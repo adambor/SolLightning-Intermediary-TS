@@ -6,8 +6,10 @@ import AnchorSigner from "../chains/solana/signer/AnchorSigner";
 import {getAssociatedTokenAddress, TOKEN_PROGRAM_ID} from "@solana/spl-token";
 import {BN} from "@coral-xyz/anchor";
 import {SystemProgram, SYSVAR_RENT_PUBKEY} from "@solana/web3.js";
-import SolanaSwapProgram from "../chains/solana/swaps/SolanaSwapProgram";
-import SolanaBtcRelay from "../chains/solana/btcrelay/SolanaBtcRelay";
+import {SolanaBtcRelay, SolanaSwapProgram, StoredDataAccount} from "crosslightning-solana";
+import BtcRPC, {BtcRPCConfig} from "../btc/BtcRPC";
+import {StorageManager} from "crosslightning-intermediary";
+import {BitcoindRpc} from "btcrelay-bitcoind";
 
 async function deposit(amount: number, token: string) {
 
@@ -29,8 +31,15 @@ async function deposit(amount: number, token: string) {
             return false;
     }
 
-    const btcRelay = new SolanaBtcRelay(AnchorSigner);
-    const swapContract = new SolanaSwapProgram(AnchorSigner, btcRelay, "");
+    const bitcoinRpc = new BitcoindRpc(
+        BtcRPCConfig.protocol,
+        BtcRPCConfig.user,
+        BtcRPCConfig.pass,
+        BtcRPCConfig.host,
+        BtcRPCConfig.port
+    );
+    const btcRelay = new SolanaBtcRelay(AnchorSigner, bitcoinRpc);
+    const swapContract = new SolanaSwapProgram(AnchorSigner, btcRelay, new StorageManager<StoredDataAccount>(""));
 
     const ata = await getAssociatedTokenAddress(useToken, AnchorSigner.publicKey);
 

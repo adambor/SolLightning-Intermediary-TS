@@ -2,11 +2,12 @@ import * as dotenv from "dotenv";
 dotenv.config();
 
 import AnchorSigner from "../chains/solana/signer/AnchorSigner";
-import SolanaBtcRelay from "../chains/solana/btcrelay/SolanaBtcRelay";
-import SolanaSwapProgram from "../chains/solana/swaps/SolanaSwapProgram";
 import {USDC_ADDRESS, USDT_ADDRESS, WBTC_ADDRESS} from "../constants/Constants";
 import {PublicKey} from "@solana/web3.js";
-import SwapContract from "../swaps/SwapContract";
+import {SolanaBtcRelay, SolanaSwapProgram, StoredDataAccount} from "crosslightning-solana";
+import BtcRPC, {BtcRPCConfig} from "../btc/BtcRPC";
+import {StorageManager} from "crosslightning-intermediary";
+import {BitcoindRpc} from "btcrelay-bitcoind";
 
 async function printReputation(swapContract: SolanaSwapProgram, token: PublicKey) {
 
@@ -26,8 +27,15 @@ async function printReputation(swapContract: SolanaSwapProgram, token: PublicKey
 
 async function main() {
 
-    const btcRelay = new SolanaBtcRelay(AnchorSigner);
-    const swapContract = new SolanaSwapProgram(AnchorSigner, btcRelay, "");
+    const bitcoinRpc = new BitcoindRpc(
+        BtcRPCConfig.protocol,
+        BtcRPCConfig.user,
+        BtcRPCConfig.pass,
+        BtcRPCConfig.host,
+        BtcRPCConfig.port
+    );
+    const btcRelay = new SolanaBtcRelay(AnchorSigner, bitcoinRpc);
+    const swapContract = new SolanaSwapProgram(AnchorSigner, btcRelay, new StorageManager<StoredDataAccount>(""));
 
     console.log("WBTC:");
     await printReputation(swapContract, WBTC_ADDRESS);

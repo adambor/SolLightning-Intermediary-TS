@@ -2,24 +2,26 @@ import * as dotenv from "dotenv";
 dotenv.config();
 
 import * as fs from "fs/promises";
-import SwapNonce from "./swaps/SwapNonce";
-import SolanaBtcRelay from "./chains/solana/btcrelay/SolanaBtcRelay";
 import AnchorSigner from "./chains/solana/signer/AnchorSigner";
-import SolanaSwapProgram from "./chains/solana/swaps/SolanaSwapProgram";
-import ToBtcAbs from "./swaps/tobtc_abstract/ToBtcAbs";
-import SolanaChainEvents from "./chains/solana/events/SolanaChainEvents";
-import {USDC_ADDRESS, USDT_ADDRESS, WBTC_ADDRESS} from "./constants/Constants";
-import ToBtcLnAbs from "./swaps/tobtcln_abstract/ToBtcLnAbs";
-import SolanaSwapData from "./chains/solana/swaps/SolanaSwapData";
-import FromBtcAbs from "./swaps/frombtc_abstract/FromBtcAbs";
-import FromBtcLnAbs from "./swaps/frombtcln_abstract/FromBtcLnAbs";
-import SwapHandler from "./swaps/SwapHandler";
+import {
+    BITCOIN_BLOCKTIME, BITCOIN_NETWORK,
+    CHAIN_BASE_FEE,
+    CHAIN_FEE_PPM,
+    CHAIN_MAX,
+    CHAIN_MIN, CHAIN_SEND_SAFETY_FACTOR,
+    GRACE_PERIOD,
+    LN_BASE_FEE,
+    LN_FEE_PPM,
+    LN_MAX,
+    LN_MIN,
+    MAX_SOL_SKEW, NETWORK_FEE_MULTIPLIER_PPM,
+    SAFETY_FACTOR,
+    USDC_ADDRESS,
+    USDT_ADDRESS,
+    WBTC_ADDRESS
+} from "./constants/Constants";
 import * as express from "express";
 import * as cors from "cors";
-import * as lncli from "ln-service";
-import InfoHandler from "./info/InfoHandler";
-import LND from "./btc/LND";
-import * as bitcoin from "bitcoinjs-lib";
 import {testnet} from "bitcoinjs-lib/src/networks";
 
 const bitcoin_chainparams = { ...testnet };
@@ -28,11 +30,16 @@ bitcoin_chainparams.bip32 = {
     private: 0x045f18bc,
 };
 
-import BIP32Factory from 'bip32';
-import * as ecc from 'tiny-secp256k1';
-import CoinGeckoSwapPrice from "./prices/CoinGeckoSwapPrice";
-
-const bip32 = BIP32Factory(ecc);
+import {SolanaBtcRelay, SolanaSwapData, SolanaSwapProgram, StoredDataAccount} from "crosslightning-solana";
+import BtcRPC, {BtcRPCConfig} from "./btc/BtcRPC";
+import * as BN from "bn.js";
+import {AUTHORIZATION_TIMEOUT} from "./constants/Constants";
+import LND from "./btc/LND";
+import {CoinGeckoSwapPrice, FromBtcAbs, FromBtcLnAbs,
+    InfoHandler,
+    SwapHandler, SwapNonce, ToBtcAbs, ToBtcLnAbs, StorageManager, FromBtcSwapAbs, ToBtcSwapAbs} from "crosslightning-intermediary";
+import {BitcoindRpc} from "btcrelay-bitcoind";
+import {SolanaChainEvents} from "crosslightning-solana/dist/solana/events/SolanaChainEvents";
 
 async function main() {
 
@@ -47,8 +54,15 @@ async function main() {
 
     console.log("[Main]: Nonce initialized!");
 
-    const btcRelay = new SolanaBtcRelay(AnchorSigner);
-    const swapContract = new SolanaSwapProgram(AnchorSigner, btcRelay, directory+"/solaccounts");
+    const bitcoinRpc = new BitcoindRpc(
+        BtcRPCConfig.protocol,
+        BtcRPCConfig.user,
+        BtcRPCConfig.pass,
+        BtcRPCConfig.host,
+        BtcRPCConfig.port
+    );
+    const btcRelay = new SolanaBtcRelay(AnchorSigner, bitcoinRpc);
+    const swapContract = new SolanaSwapProgram(AnchorSigner, btcRelay, new StorageManager<StoredDataAccount>(directory+"/solaccounts"));
     const chainEvents = new SolanaChainEvents(directory, AnchorSigner, swapContract);
 
     const allowedTokens = [
@@ -60,23 +74,91 @@ async function main() {
 
     const prices = new CoinGeckoSwapPrice(null, allowedTokens[0], allowedTokens[1], allowedTokens[2], allowedTokens[3]);
 
-    await swapContract.init();
+    await swapContract.start();
     console.log("[Main]: Swap contract initialized!");
 
     const swapHandlers: SwapHandler<any, SolanaSwapData>[] = [];
 
     swapHandlers.push(
-        new ToBtcAbs<SolanaSwapData>(directory+"/tobtc", "/tobtc", swapContract, chainEvents, nonce, allowedTokens, prices)
+        new ToBtcAbs<SolanaSwapData>(new StorageManager(directory+"/tobtc"), "/tobtc", swapContract, chainEvents, nonce, allowedTokens, LND, prices, bitcoinRpc, {
+            authorizationTimeout: AUTHORIZATION_TIMEOUT,
+            bitcoinBlocktime: BITCOIN_BLOCKTIME,
+            gracePeriod: GRACE_PERIOD,
+            baseFee: CHAIN_BASE_FEE,
+            feePPM: CHAIN_FEE_PPM,
+            max: CHAIN_MAX,
+            min: CHAIN_MIN,
+            maxSkew: MAX_SOL_SKEW,
+            safetyFactor: SAFETY_FACTOR,
+            sendSafetyFactor: CHAIN_SEND_SAFETY_FACTOR,
+
+            bitcoinNetwork: BITCOIN_NETWORK,
+
+            minChainCltv: new BN(10),
+
+            networkFeeMultiplierPPM: NETWORK_FEE_MULTIPLIER_PPM,
+            minConfirmations: 1,
+            maxConfirmations: 6,
+            maxConfTarget: 12,
+            minConfTarget: 1,
+
+            txCheckInterval: 10*1000,
+            swapCheckInterval: 5*60*1000
+        })
     );
     swapHandlers.push(
-        new FromBtcAbs<SolanaSwapData>(directory+"/frombtc", "/frombtc", swapContract, chainEvents, nonce, allowedTokens, prices)
+        new FromBtcAbs<SolanaSwapData>(new StorageManager(directory+"/frombtc"), "/frombtc", swapContract, chainEvents, nonce, allowedTokens, LND, prices, {
+            authorizationTimeout: AUTHORIZATION_TIMEOUT,
+            bitcoinBlocktime: BITCOIN_BLOCKTIME,
+            baseFee: CHAIN_BASE_FEE,
+            feePPM: CHAIN_FEE_PPM,
+            max: CHAIN_MAX,
+            min: CHAIN_MIN,
+            maxSkew: MAX_SOL_SKEW,
+            safetyFactor: SAFETY_FACTOR,
+
+            bitcoinNetwork: BITCOIN_NETWORK,
+
+            confirmations: 2,
+            swapCsvDelta: 72,
+
+            refundInterval: 5*60*1000
+        })
     );
 
     swapHandlers.push(
-        new ToBtcLnAbs<SolanaSwapData>(directory+"/tobtcln", "/tobtcln", swapContract, chainEvents, nonce, allowedTokens, prices)
+        new ToBtcLnAbs<SolanaSwapData>(new StorageManager(directory+"/tobtcln"), "/tobtcln", swapContract, chainEvents, nonce, allowedTokens, LND, prices, {
+            authorizationTimeout: AUTHORIZATION_TIMEOUT,
+            bitcoinBlocktime: BITCOIN_BLOCKTIME,
+            gracePeriod: GRACE_PERIOD,
+            baseFee: LN_BASE_FEE,
+            feePPM: LN_FEE_PPM,
+            max: LN_MAX,
+            min: LN_MIN,
+            maxSkew: MAX_SOL_SKEW,
+            safetyFactor: SAFETY_FACTOR,
+
+            minSendCltv: new BN(10),
+
+            swapCheckInterval: 5*60*1000
+        })
     );
     swapHandlers.push(
-        new FromBtcLnAbs<SolanaSwapData>(directory+"/frombtcln", "/frombtcln", swapContract, chainEvents, nonce, allowedTokens, prices)
+        new FromBtcLnAbs<SolanaSwapData>(new StorageManager(directory+"/frombtcln"), "/frombtcln", swapContract, chainEvents, nonce, allowedTokens, LND, prices, {
+            authorizationTimeout: AUTHORIZATION_TIMEOUT,
+            bitcoinBlocktime: BITCOIN_BLOCKTIME,
+            gracePeriod: GRACE_PERIOD,
+            baseFee: LN_BASE_FEE,
+            feePPM: LN_FEE_PPM,
+            max: LN_MAX,
+            min: LN_MIN,
+            maxSkew: MAX_SOL_SKEW,
+            safetyFactor: SAFETY_FACTOR,
+
+            minCltv: new BN(20),
+
+            refundInterval: 5*60*1000
+        })
     );
 
     for(let swapHandler of swapHandlers) {
@@ -115,31 +197,5 @@ async function main() {
 
 }
 
-async function test() {
-
-    const {keys} = await lncli.getMasterPublicKeys({lnd: LND});
-
-    const timestamp = Date.now();
-
-    const bech32Key = keys.find(e => e.derivation_path.startsWith("m/84'"));
-
-    console.log(bech32Key);
-
-    const pubRoot = bip32.fromBase58(bech32Key.extended_public_key, bitcoin_chainparams);
-
-    for(let i=0;i<bech32Key.external_key_count;i++) {
-        const node = pubRoot.derivePath("0/" + i);
-        const address = bitcoin.payments.p2wpkh({ pubkey: node.publicKey, network: bitcoin_chainparams });
-        //console.log("Address: ", address);
-    }
-
-    for(let i=0;i<bech32Key.internal_key_count;i++) {
-        const node = pubRoot.derivePath("1/" + i);
-        const address = bitcoin.payments.p2wpkh({ pubkey: node.publicKey, network: bitcoin_chainparams });
-        //console.log("Address: ", address);
-    }
-
-    console.log("Time taken: ", Date.now()-timestamp)
-}
 
 main().catch(e => console.error(e));
