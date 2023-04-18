@@ -1,7 +1,0 @@
-
-
-interface StorageObject {
-
-    serialize(): any;
-
-}
