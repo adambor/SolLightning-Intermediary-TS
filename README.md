@@ -6,7 +6,7 @@ Principle of operation is described in depth [here](https://github.com/adambor/S
 
 This software is made to be used in conjunction with [client SDK](https://github.com/adambor/SolLightning-sdk).
 
-**NOTE: This implementation is hardcoded to use bitcoin testnet3 and solana devnet, as it is still in alpha stage and is not safe to use for live systems. MAY contain bugs and uncovered edge-cases**
+**NOTE: This implementation is still in alpha stage and MAY contain bugs and uncovered edge-cases, use at your own risk!**
 
 ## REST API
 This app starts an http rest api server on port 4000.
