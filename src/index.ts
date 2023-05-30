@@ -41,6 +41,8 @@ import {CoinGeckoSwapPrice, FromBtcAbs, FromBtcLnAbs,
 import {BitcoindRpc} from "btcrelay-bitcoind";
 import {SolanaChainEvents} from "crosslightning-solana/dist/solana/events/SolanaChainEvents";
 
+const SECURITY_DEPOSIT_APY = 0.2; //20% p.a.
+
 async function main() {
 
     const directory = "./storage";
@@ -52,6 +54,9 @@ async function main() {
     const nonce = new SwapNonce(directory);
     await nonce.init();
 
+    console.log("[Main]: Running in bitcoin "+process.env.BTC_NETWORK+" mode!");
+    console.log("[Main]: Using RPC: "+process.env.SOL_RPC_URL+"!");
+
     console.log("[Main]: Nonce initialized!");
 
     const bitcoinRpc = new BitcoindRpc(
@@ -61,8 +66,8 @@ async function main() {
         BtcRPCConfig.host,
         BtcRPCConfig.port
     );
-    const btcRelay = new SolanaBtcRelay(AnchorSigner, bitcoinRpc);
-    const swapContract = new SolanaSwapProgram(AnchorSigner, btcRelay, new StorageManager<StoredDataAccount>(directory+"/solaccounts"));
+    const btcRelay = new SolanaBtcRelay(AnchorSigner, bitcoinRpc, process.env.BTC_RELAY_CONTRACT_ADDRESS);
+    const swapContract = new SolanaSwapProgram(AnchorSigner, btcRelay, new StorageManager<StoredDataAccount>(directory+"/solaccounts"), process.env.SWAP_CONTRACT_ADDRESS);
     const chainEvents = new SolanaChainEvents(directory, AnchorSigner, swapContract);
 
     const allowedTokens = [
@@ -122,7 +127,8 @@ async function main() {
             confirmations: 2,
             swapCsvDelta: 72,
 
-            refundInterval: 5*60*1000
+            refundInterval: 5*60*1000,
+            securityDepositAPY: SECURITY_DEPOSIT_APY
         })
     );
 
@@ -157,7 +163,8 @@ async function main() {
 
             minCltv: new BN(20),
 
-            refundInterval: 5*60*1000
+            refundInterval: 5*60*1000,
+            securityDepositAPY: SECURITY_DEPOSIT_APY
         })
     );
 
