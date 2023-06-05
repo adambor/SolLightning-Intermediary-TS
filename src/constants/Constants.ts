@@ -3,7 +3,7 @@ import * as BN from "bn.js";
 import * as bitcoin from "bitcoinjs-lib";
 
 //Bitcoin
-export const BITCOIN_NETWORK = bitcoin.networks.testnet;
+export const BITCOIN_NETWORK = process.env.BTC_NETWORK==="mainnet" ? bitcoin.networks.bitcoin : bitcoin.networks.testnet;
 export const BITCOIN_BLOCKTIME = new BN(10*60);
 
 //Swap safety
