@@ -144,6 +144,8 @@ async function main() {
             maxSkew: MAX_SOL_SKEW,
             safetyFactor: SAFETY_FACTOR,
 
+            routingFeeMultiplier: new BN(2),
+
             minSendCltv: new BN(10),
 
             swapCheckInterval: 5*60*1000
