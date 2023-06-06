@@ -9,7 +9,11 @@ This software is made to be used in conjunction with [client SDK](https://github
 **NOTE: This implementation is still in alpha stage and MAY contain bugs and uncovered edge-cases, use at your own risk!**
 
 ## REST API
-This app starts an http rest api server on port 4000.
+This app starts an http rest api server on port 4000 (by default). This is configurable by REST_PORT option in .env file.
+
+```
+REST_PORT="4001"
+```
 
 **NOTE:** Be sure to open this ports so client SDK can call the REST API.
 
@@ -27,7 +31,7 @@ This app starts an http rest api server on port 4000.
 3. Run the bitcoind with the configuration file: ```bitcoind -conf=<path/to/bitcoin.conf>```
 4. Wait till bitcoind finishes with IBD (initial block download), should take no more than a few hours for testnet on a regular PC with good internet connection
 5. Create a new wallet in bitcoind: ```bitcoin-cli -testnet -conf=<path/to/bitcoin.conf> createwallet test true false "" false false true false```
-6. Set the configured rpc ip, port, username and password in _.env file (not necessary if you used provided [bitcoin.conf](https://github.com/adambor/SolLightning-Intermediary-TS/blob/main/bitcoind/bitcoin.conf))
+6. Set the configured rpc ip, port, username and password in \_.env file (not necessary if you used provided [bitcoin.conf](https://github.com/adambor/SolLightning-Intermediary-TS/blob/main/bitcoind/bitcoin.conf))
 
 ### Installing lnd
 1. Download latest version from [here](https://github.com/lightningnetwork/lnd/releases) or [build from source](https://github.com/lightningnetwork/lnd/blob/master/docs/INSTALL.md#installing-a-binary-release)
@@ -57,16 +61,16 @@ This app starts an http rest api server on port 4000.
 ### Installing btcrelay
 Instructions available [here](https://github.com/adambor/BTCRelay-Sol-Offchain). Skip steps 2.-4. as you already have bitcoind setup and running.
 
-### Installing sollightning
+### Installing sollightning intermediary
 1. Install necessary npm packages: ```npm install```
 2. Install typescript: ```npm install -g typescript```
 3. Compile to javascript: ```tsc```
-4. Rename _.env file to .env
+4. Rename \_.env file to .env
 5. Generate a new solana keypair: ```npm run genKey```
 6. Airdrop some devnet tokens to your newly generated solana wallet: ```npm run airdrop```
 7. Create the WBTC, USDC and USDT tokens on devnet: ```npm run createToken```
-8. Mint some WBTC/USDC/USDT token to your new keypair: ```npm run mint <WBTC/USDC/USDT> <amount to mint in satoshis>```
-9. You can also mint some WBTC/USDC/USDT tokens to your phantom wallet: ```npm run mint <WBTC/USDC/USDT> <amount to mint in satoshis> <wallet address>```
-10. Deposit your WBTC/USDC/USDT to the program ```npm run deposit <WBTC/USDC/USDT> <amount to deposit in satoshis>```
+8. Mint some WBTC/USDC/USDT token to your new keypair: ```npm run mint <WBTC/USDC/USDT> <amount to mint in base units>```
+9. You can also mint some WBTC/USDC/USDT tokens to your phantom wallet: ```npm run mint <WBTC/USDC/USDT> <amount to mint in base units> <wallet address>```
+10. Deposit your WBTC/USDC/USDT to the program ```npm run deposit <WBTC/USDC/USDT> <amount to deposit in base units>```
 11. Be sure that bitcoind, lnd and btcrelay are running before starting the app.
 12. Run the app with: ```npm start```
