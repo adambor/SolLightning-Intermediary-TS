@@ -148,7 +148,9 @@ async function main() {
 
             minSendCltv: new BN(10),
 
-            swapCheckInterval: 5*60*1000
+            swapCheckInterval: 5*60*1000,
+
+            allowProbeFailedSwaps: process.env.ALLOW_NON_PROBABLE_SWAPS==="true"
         })
     );
     swapHandlers.push(
