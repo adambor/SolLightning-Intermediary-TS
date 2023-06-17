@@ -150,8 +150,8 @@ async function main() {
 
             swapCheckInterval: 5*60*1000,
 
-            allowProbeFailedSwaps: true,
-            allowShortExpiry: true
+            allowShortExpiry: true,
+            allowProbeFailedSwaps: process.env.ALLOW_NON_PROBABLE_SWAPS==="true"
         })
     );
     swapHandlers.push(

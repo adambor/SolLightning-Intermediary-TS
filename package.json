@@ -26,9 +26,15 @@
     "bn.js": "^5.2.1",
     "btcrelay-bitcoind": "^3.0.4",
     "cors": "^2.8.5",
+<<<<<<< HEAD
     "crosslightning-base": "^3.1.0",
     "crosslightning-intermediary": "^3.2.0",
     "crosslightning-solana": "^3.0.25",
+=======
+    "crosslightning-base": "^3.0.8",
+    "crosslightning-intermediary": "^3.1.9",
+    "crosslightning-solana": "^3.0.13",
+>>>>>>> ef43ff8b2503d1ae175081fc7a4dbe56ae3f0924
     "crypto": "^1.0.1",
     "dotenv": "^16.0.3",
     "ecpair": "^2.1.0",
