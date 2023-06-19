@@ -168,7 +168,7 @@ async function main() {
 
             minCltv: new BN(20),
 
-            refundInterval: 5*60*1000,
+            refundInterval: 1*60*1000,
             securityDepositAPY: SECURITY_DEPOSIT_APY
         })
     );
