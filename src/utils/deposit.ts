@@ -3,15 +3,18 @@ dotenv.config();
 
 import {USDC_ADDRESS, USDT_ADDRESS, WBTC_ADDRESS, WSOL_ADDRESS} from "../constants/Constants";
 import AnchorSigner from "../chains/solana/signer/AnchorSigner";
-import {getAssociatedTokenAddress, TOKEN_PROGRAM_ID} from "@solana/spl-token";
+import {createAssociatedTokenAccountInstruction,
+    createSyncNativeInstruction, getAccount, getAssociatedTokenAddress, TOKEN_PROGRAM_ID} from "@solana/spl-token";
 import {BN} from "@coral-xyz/anchor";
-import {SystemProgram, SYSVAR_RENT_PUBKEY} from "@solana/web3.js";
+import {SystemProgram, SYSVAR_RENT_PUBKEY, Transaction} from "@solana/web3.js";
 import {SolanaBtcRelay, SolanaSwapProgram, StoredDataAccount} from "crosslightning-solana";
 import BtcRPC, {BtcRPCConfig} from "../btc/BtcRPC";
 import {StorageManager} from "crosslightning-intermediary";
 import {BitcoindRpc} from "btcrelay-bitcoind";
 
 async function deposit(amount: number, token: string) {
+
+    const amountBN = new BN(amount);
 
     let useToken;
     switch (token) {
@@ -43,8 +46,32 @@ async function deposit(amount: number, token: string) {
 
     const ata = await getAssociatedTokenAddress(useToken, AnchorSigner.publicKey);
 
-    let result = await swapContract.program.methods
-        .deposit(new BN(amount))
+    const tx = new Transaction();
+
+    let balance = new BN(0);
+    let accountExists = false;
+    if(token==="WSOL") {
+        const ataAcc = await getAccount(AnchorSigner.connection, ata);
+        if(ataAcc!=null) {
+            accountExists = true;
+            balance = balance.add(new BN(ataAcc.amount.toString()));
+        }
+        if(balance.lt(amountBN)) {
+            const remainder = amountBN.sub(balance);
+            if(!accountExists) {
+                //Need to create account
+                tx.add(createAssociatedTokenAccountInstruction(AnchorSigner.publicKey, ata, AnchorSigner.publicKey, useToken));
+            }
+            tx.add(SystemProgram.transfer({
+                fromPubkey: AnchorSigner.publicKey,
+                toPubkey: ata,
+                lamports: remainder.toNumber()
+            }));
+            tx.add(createSyncNativeInstruction(ata));
+        }
+    }
+    tx.add(await swapContract.program.methods
+        .deposit(amountBN)
         .accounts({
             initializer: AnchorSigner.publicKey,
             userData: swapContract.SwapUserVault(AnchorSigner.publicKey, useToken),
@@ -57,9 +84,9 @@ async function deposit(amount: number, token: string) {
             tokenProgram: TOKEN_PROGRAM_ID,
         })
         .signers([AnchorSigner.signer])
-        .transaction();
+        .instruction());
 
-    const signature = await AnchorSigner.sendAndConfirm(result, [AnchorSigner.signer]);
+    const signature = await AnchorSigner.sendAndConfirm(tx, [AnchorSigner.signer]);
 
     console.log("Deposit sent: ", signature);
 
