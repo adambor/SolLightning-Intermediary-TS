@@ -37,7 +37,7 @@ import {AUTHORIZATION_TIMEOUT} from "./constants/Constants";
 import LND from "./btc/LND";
 import {CoinGeckoSwapPrice, FromBtcAbs, FromBtcLnAbs,
     InfoHandler,
-    SwapHandler, SwapNonce, ToBtcAbs, ToBtcLnAbs, StorageManager, FromBtcSwapAbs, ToBtcSwapAbs} from "crosslightning-intermediary";
+    SwapHandler, SwapNonce, ToBtcAbs, ToBtcLnAbs, StorageManager, FromBtcSwapAbs, ToBtcSwapAbs, PluginManager} from "crosslightning-intermediary";
 import {BitcoindRpc} from "btcrelay-bitcoind";
 import {SolanaChainEvents} from "crosslightning-solana/dist/solana/events/SolanaChainEvents";
 
@@ -51,25 +51,6 @@ async function main() {
         await fs.mkdir(directory)
     } catch (e) {}
 
-    const nonce = new SwapNonce(directory);
-    await nonce.init();
-
-    console.log("[Main]: Running in bitcoin "+process.env.BTC_NETWORK+" mode!");
-    console.log("[Main]: Using RPC: "+process.env.SOL_RPC_URL+"!");
-
-    console.log("[Main]: Nonce initialized!");
-
-    const bitcoinRpc = new BitcoindRpc(
-        BtcRPCConfig.protocol,
-        BtcRPCConfig.user,
-        BtcRPCConfig.pass,
-        BtcRPCConfig.host,
-        BtcRPCConfig.port
-    );
-    const btcRelay = new SolanaBtcRelay(AnchorSigner, bitcoinRpc, process.env.BTC_RELAY_CONTRACT_ADDRESS);
-    const swapContract = new SolanaSwapProgram(AnchorSigner, btcRelay, new StorageManager<StoredDataAccount>(directory+"/solaccounts"), process.env.SWAP_CONTRACT_ADDRESS);
-    const chainEvents = new SolanaChainEvents(directory, AnchorSigner, swapContract);
-
     const allowedTokens = [
         USDC_ADDRESS==null ? "" : USDC_ADDRESS.toBase58(),
         USDT_ADDRESS==null ? "" : USDT_ADDRESS.toBase58(),
@@ -79,8 +60,31 @@ async function main() {
 
     const prices = new CoinGeckoSwapPrice(null, allowedTokens[0], allowedTokens[1], allowedTokens[2], allowedTokens[3]);
 
+    const bitcoinRpc = new BitcoindRpc(
+        BtcRPCConfig.protocol,
+        BtcRPCConfig.user,
+        BtcRPCConfig.pass,
+        BtcRPCConfig.host,
+        BtcRPCConfig.port
+    );
+
+
+    const nonce = new SwapNonce(directory);
+    await nonce.init();
+
+    console.log("[Main]: Running in bitcoin "+process.env.BTC_NETWORK+" mode!");
+    console.log("[Main]: Using RPC: "+process.env.SOL_RPC_URL+"!");
+
+    console.log("[Main]: Nonce initialized!");
+
+    const btcRelay = new SolanaBtcRelay(AnchorSigner, bitcoinRpc, process.env.BTC_RELAY_CONTRACT_ADDRESS);
+    const swapContract = new SolanaSwapProgram(AnchorSigner, btcRelay, new StorageManager<StoredDataAccount>(directory+"/solaccounts"), process.env.SWAP_CONTRACT_ADDRESS);
+    const chainEvents = new SolanaChainEvents(directory, AnchorSigner, swapContract);
+
     await swapContract.start();
     console.log("[Main]: Swap contract initialized!");
+
+    await PluginManager.enable(swapContract, btcRelay, chainEvents, LND);
 
     const swapHandlers: SwapHandler<any, SolanaSwapData>[] = [];
 
