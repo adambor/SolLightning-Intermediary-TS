@@ -25,15 +25,15 @@ export const WSOL_ADDRESS = process.env.USDT_ADDRESS==null ? null : new PublicKe
 export const AUTHORIZATION_TIMEOUT = 10*60;
 
 //LN fees
-export const LN_BASE_FEE = new BN(10);
-export const LN_FEE_PPM = new BN(3000);
+export const LN_BASE_FEE = new BN(process.env.LN_BASE_FEE || 10);
+export const LN_FEE_PPM = new BN(process.env.LN_FEE_PPM || 3000);
 
-export const LN_MIN = new BN(1000);
-export const LN_MAX = new BN(1000000);
+export const LN_MIN = new BN(process.env.LN_MIN || 1000);
+export const LN_MAX = new BN(process.env.LN_MAX || 1000000);
 
 //On-chain fees
-export const CHAIN_BASE_FEE = new BN(50);
-export const CHAIN_FEE_PPM = new BN(3000);
+export const CHAIN_BASE_FEE = new BN(process.env.CHAIN_BASE_FEE || 50);
+export const CHAIN_FEE_PPM = new BN(process.env.CHAIN_FEE_PPM || 3000);
 
-export const CHAIN_MIN = new BN(10000);
-export const CHAIN_MAX = new BN(1000000);
+export const CHAIN_MIN = new BN(process.env.CHAIN_MIN || 10000);
+export const CHAIN_MAX = new BN(process.env.CHAIN_MAX || 1000000);
