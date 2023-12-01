@@ -35,7 +35,7 @@ import BtcRPC, {BtcRPCConfig} from "./btc/BtcRPC";
 import * as BN from "bn.js";
 import {AUTHORIZATION_TIMEOUT} from "./constants/Constants";
 import LND from "./btc/LND";
-import {CoinGeckoSwapPrice, FromBtcAbs, FromBtcLnAbs,
+import {BinanceSwapPrice, FromBtcAbs, FromBtcLnAbs,
     InfoHandler,
     SwapHandler, SwapNonce, ToBtcAbs, ToBtcLnAbs, StorageManager, FromBtcSwapAbs, ToBtcSwapAbs, PluginManager} from "crosslightning-intermediary";
 import {BitcoindRpc} from "btcrelay-bitcoind";
@@ -58,7 +58,7 @@ async function main() {
         WBTC_ADDRESS.toBase58()
     ];
 
-    const prices = new CoinGeckoSwapPrice(null, allowedTokens[0], allowedTokens[1], allowedTokens[2], allowedTokens[3]);
+    const prices = new BinanceSwapPrice(null, allowedTokens[0], allowedTokens[1], allowedTokens[2], allowedTokens[3]);
 
     const bitcoinRpc = new BitcoindRpc(
         BtcRPCConfig.protocol,
