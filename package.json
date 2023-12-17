@@ -27,7 +27,7 @@
     "btcrelay-bitcoind": "^4.2.0",
     "cors": "^2.8.5",
     "crosslightning-base": "^4.4.0",
-    "crosslightning-intermediary": "^8.5.0",
+    "crosslightning-intermediary": "^8.5.1",
     "crosslightning-solana": "^3.12.5",
     "crypto": "^1.0.1",
     "dotenv": "^16.0.3",
