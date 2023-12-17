@@ -6,7 +6,9 @@ const address = process.env.SOL_ADDRESS;
 
 const _signer = Keypair.fromSecretKey(Buffer.from(privKey, "hex"));
 
-const connection = new Connection(process.env.SOL_RPC_URL, "confirmed");
+const connection = new Connection(process.env.SOL_RPC_URL, {
+    commitment: "confirmed"
+});
 const AnchorSigner: (AnchorProvider & {signer: Keypair}) = new AnchorProvider(connection, new Wallet(_signer), {
     preflightCommitment: "confirmed"
 }) as any;

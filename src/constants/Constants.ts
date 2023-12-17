@@ -12,7 +12,7 @@ export const SAFETY_FACTOR = new BN(2);
 export const CHAIN_SEND_SAFETY_FACTOR = new BN(2);
 
 //On-chain fee multiplier PPM
-export const NETWORK_FEE_MULTIPLIER_PPM = new BN(1500000);
+export const NETWORK_FEE_MULTIPLIER_PPM = new BN(1250000);
 
 //Solana
 export const MAX_SOL_SKEW = 10*60; //How long to wait to refund back the order after its expiry
