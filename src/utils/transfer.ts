@@ -52,7 +52,7 @@ async function withdraw(dstAddress: string, amount: number, token: string) {
 async function main() {
     if(process.argv.length<5) {
         console.error("Needs at least 3 arguments");
-        console.error("Usage: node withdraw.js <dstAddress> <token:WBTC,USDC,USDT> <amount>");
+        console.error("Usage: node withdraw.js <token:WBTC,USDC,USDT> <amount> <dstAddress>");
         return;
     }
 

@@ -41,27 +41,7 @@ async function withdraw(amount: number, token: string) {
     const btcRelay = new SolanaBtcRelay(AnchorSigner, bitcoinRpc);
     const swapContract = new SolanaSwapProgram(AnchorSigner, btcRelay, new StorageManager<StoredDataAccount>(""));
 
-    const ata = await getAssociatedTokenAddress(useToken, AnchorSigner.publicKey);
-
-    let result = await swapContract.program.methods
-        .withdraw(new BN(amount))
-        .accounts({
-            initializer: AnchorSigner.publicKey,
-            userData: swapContract.SwapUserVault(AnchorSigner.publicKey, useToken),
-            mint: useToken,
-            vault: swapContract.SwapVault(useToken),
-            vaultAuthority: swapContract.SwapVaultAuthority,
-            initializerDepositTokenAccount: ata,
-            systemProgram: SystemProgram.programId,
-            rent: SYSVAR_RENT_PUBKEY,
-            tokenProgram: TOKEN_PROGRAM_ID,
-        })
-        .signers([AnchorSigner.signer])
-        .transaction();
-
-    const signature = await AnchorSigner.sendAndConfirm(result, [AnchorSigner.signer]);
-
-    console.log("Withdrawal sent: ", signature);
+    console.log("Withdrawal sent: ", await swapContract.withdraw(useToken, new BN(amount), true));
 
     return true;
 

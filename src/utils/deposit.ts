@@ -44,51 +44,7 @@ async function deposit(amount: number, token: string) {
     const btcRelay = new SolanaBtcRelay(AnchorSigner, bitcoinRpc);
     const swapContract = new SolanaSwapProgram(AnchorSigner, btcRelay, new StorageManager<StoredDataAccount>(""));
 
-    const ata = await getAssociatedTokenAddress(useToken, AnchorSigner.publicKey);
-
-    const tx = new Transaction();
-
-    let balance = new BN(0);
-    let accountExists = false;
-    if(token==="WSOL") {
-        const ataAcc = await getAccount(AnchorSigner.connection, ata);
-        if(ataAcc!=null) {
-            accountExists = true;
-            balance = balance.add(new BN(ataAcc.amount.toString()));
-        }
-        if(balance.lt(amountBN)) {
-            const remainder = amountBN.sub(balance);
-            if(!accountExists) {
-                //Need to create account
-                tx.add(createAssociatedTokenAccountInstruction(AnchorSigner.publicKey, ata, AnchorSigner.publicKey, useToken));
-            }
-            tx.add(SystemProgram.transfer({
-                fromPubkey: AnchorSigner.publicKey,
-                toPubkey: ata,
-                lamports: remainder.toNumber()
-            }));
-            tx.add(createSyncNativeInstruction(ata));
-        }
-    }
-    tx.add(await swapContract.program.methods
-        .deposit(amountBN)
-        .accounts({
-            initializer: AnchorSigner.publicKey,
-            userData: swapContract.SwapUserVault(AnchorSigner.publicKey, useToken),
-            mint: useToken,
-            vault: swapContract.SwapVault(useToken),
-            vaultAuthority: swapContract.SwapVaultAuthority,
-            initializerDepositTokenAccount: ata,
-            systemProgram: SystemProgram.programId,
-            rent: SYSVAR_RENT_PUBKEY,
-            tokenProgram: TOKEN_PROGRAM_ID,
-        })
-        .signers([AnchorSigner.signer])
-        .instruction());
-
-    const signature = await AnchorSigner.sendAndConfirm(tx, [AnchorSigner.signer]);
-
-    console.log("Deposit sent: ", signature);
+    console.log("Deposit sent: ", await swapContract.deposit(useToken, amountBN, true));
 
     return true;
 
