@@ -28,7 +28,7 @@
     "cors": "^2.8.5",
     "crosslightning-base": "^4.4.0",
     "crosslightning-intermediary": "^8.6.3",
-    "crosslightning-solana": "^3.12.7",
+    "crosslightning-solana": "^3.13.2",
     "crypto": "^1.0.1",
     "dotenv": "^16.0.3",
     "express": "^4.18.2",
