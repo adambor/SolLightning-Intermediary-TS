@@ -38,7 +38,8 @@ import LND from "./btc/LND";
 import {BinanceSwapPrice, FromBtcAbs, FromBtcLnAbs,
     InfoHandler,
     SwapHandler, SwapNonce, ToBtcAbs, ToBtcLnAbs, StorageManager, FromBtcSwapAbs, ToBtcSwapAbs, PluginManager,
-    IntermediaryStorageManager} from "crosslightning-intermediary";
+    IntermediaryStorageManager,
+    OneDollarFeeEstimator} from "crosslightning-intermediary";
 import {BitcoindRpc} from "btcrelay-bitcoind";
 import {SolanaChainEvents} from "crosslightning-solana/dist/solana/events/SolanaChainEvents";
 import {getEnabledPlugins} from "./plugins";
@@ -123,7 +124,14 @@ async function main() {
             minConfTarget: 1,
 
             txCheckInterval: 10*1000,
-            swapCheckInterval: 5*60*1000
+            swapCheckInterval: 1*60*1000,
+
+            feeEstimator: new OneDollarFeeEstimator(
+                BtcRPCConfig.host,
+                BtcRPCConfig.port,
+                BtcRPCConfig.user,
+                BtcRPCConfig.pass
+            )
         })
     );
     swapHandlers.push(
