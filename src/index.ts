@@ -124,7 +124,7 @@ async function main() {
             minConfTarget: 1,
 
             txCheckInterval: 10*1000,
-            swapCheckInterval: 1*60*1000,
+            swapCheckInterval: 5*60*1000,
 
             feeEstimator: new OneDollarFeeEstimator(
                 BtcRPCConfig.host,
