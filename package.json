@@ -20,11 +20,11 @@
   "dependencies": {
     "@types/bn.js": "^5.1.5",
     "bn.js": "^5.2.1",
-    "btcrelay-bitcoind": "^5.0.1",
+    "btcrelay-bitcoind": "5.0.2",
     "cors": "^2.8.5",
-    "crosslightning-base": "^5.0.0",
-    "crosslightning-intermediary": "9.0.3",
-    "crosslightning-solana": "4.0.11",
+    "crosslightning-base": "6.0.0",
+    "crosslightning-intermediary": "9.0.6",
+    "crosslightning-solana": "5.0.2",
     "crypto": "^1.0.1",
     "dotenv": "^16.0.3",
     "typescript": "^4.9.5"
