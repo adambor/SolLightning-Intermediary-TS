@@ -20,13 +20,17 @@
   "dependencies": {
     "@types/bn.js": "^5.1.5",
     "bn.js": "^5.2.1",
-    "btcrelay-bitcoind": "^4.2.2",
+    "btcrelay-bitcoind": "5.0.2",
     "cors": "^2.8.5",
-    "crosslightning-base": "^4.4.0",
-    "crosslightning-intermediary": "^8.7.16",
-    "crosslightning-solana": "^3.13.6",
+    "crosslightning-base": "6.0.0",
+    "crosslightning-intermediary": "9.1.6",
+    "crosslightning-solana": "5.0.2",
     "crypto": "^1.0.1",
     "dotenv": "^16.0.3",
+    "express": "4.18.2",
+    "http2-express-bridge": "1.0.7",
+    "lightning": "10.3.1",
+    "ln-service": "57.3.0",
     "typescript": "^4.9.5"
   },
   "devDependencies": {

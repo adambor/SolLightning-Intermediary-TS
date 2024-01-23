@@ -37,7 +37,7 @@ import {AUTHORIZATION_TIMEOUT} from "./constants/Constants";
 import LND from "./btc/LND";
 import {BinanceSwapPrice, FromBtcAbs, FromBtcLnAbs,
     InfoHandler,
-    SwapHandler, SwapNonce, ToBtcAbs, ToBtcLnAbs, StorageManager, FromBtcSwapAbs, ToBtcSwapAbs, PluginManager,
+    SwapHandler, ToBtcAbs, ToBtcLnAbs, StorageManager, FromBtcSwapAbs, ToBtcSwapAbs, PluginManager,
     IntermediaryStorageManager,
     OneDollarFeeEstimator} from "crosslightning-intermediary";
 import {BitcoindRpc} from "btcrelay-bitcoind";
@@ -71,10 +71,6 @@ async function main() {
         BtcRPCConfig.port
     );
 
-
-    const nonce = new SwapNonce(directory);
-    await nonce.init();
-
     console.log("[Main]: Running in bitcoin "+process.env.BTC_NETWORK+" mode!");
     console.log("[Main]: Using RPC: "+process.env.SOL_RPC_URL+"!");
 
@@ -90,7 +86,6 @@ async function main() {
     getEnabledPlugins(
         prices,
         bitcoinRpc,
-        nonce,
         btcRelay,
         swapContract,
         chainEvents
@@ -101,7 +96,7 @@ async function main() {
     const swapHandlers: SwapHandler<any, SolanaSwapData>[] = [];
 
     swapHandlers.push(
-        new ToBtcAbs<SolanaSwapData>(new IntermediaryStorageManager(directory+"/tobtc"), "/tobtc", swapContract, chainEvents, nonce, allowedTokens, LND, prices, bitcoinRpc, {
+        new ToBtcAbs<SolanaSwapData>(new IntermediaryStorageManager(directory+"/tobtc"), "/tobtc", swapContract, chainEvents, allowedTokens, LND, prices, bitcoinRpc, {
             authorizationTimeout: AUTHORIZATION_TIMEOUT,
             bitcoinBlocktime: BITCOIN_BLOCKTIME,
             gracePeriod: GRACE_PERIOD,
@@ -135,7 +130,7 @@ async function main() {
         })
     );
     swapHandlers.push(
-        new FromBtcAbs<SolanaSwapData>(new IntermediaryStorageManager(directory+"/frombtc"), "/frombtc", swapContract, chainEvents, nonce, allowedTokens, LND, prices, {
+        new FromBtcAbs<SolanaSwapData>(new IntermediaryStorageManager(directory+"/frombtc"), "/frombtc", swapContract, chainEvents, allowedTokens, LND, prices, {
             authorizationTimeout: AUTHORIZATION_TIMEOUT,
             bitcoinBlocktime: BITCOIN_BLOCKTIME,
             baseFee: CHAIN_BASE_FEE,
@@ -156,7 +151,7 @@ async function main() {
     );
 
     swapHandlers.push(
-        new ToBtcLnAbs<SolanaSwapData>(new IntermediaryStorageManager(directory+"/tobtcln"), "/tobtcln", swapContract, chainEvents, nonce, allowedTokens, LND, prices, {
+        new ToBtcLnAbs<SolanaSwapData>(new IntermediaryStorageManager(directory+"/tobtcln"), "/tobtcln", swapContract, chainEvents, allowedTokens, LND, prices, {
             authorizationTimeout: AUTHORIZATION_TIMEOUT,
             bitcoinBlocktime: BITCOIN_BLOCKTIME,
             gracePeriod: GRACE_PERIOD,
@@ -178,7 +173,7 @@ async function main() {
         })
     );
     swapHandlers.push(
-        new FromBtcLnAbs<SolanaSwapData>(new IntermediaryStorageManager(directory+"/frombtcln"), "/frombtcln", swapContract, chainEvents, nonce, allowedTokens, LND, prices, {
+        new FromBtcLnAbs<SolanaSwapData>(new IntermediaryStorageManager(directory+"/frombtcln"), "/frombtcln", swapContract, chainEvents, allowedTokens, LND, prices, {
             authorizationTimeout: AUTHORIZATION_TIMEOUT,
             bitcoinBlocktime: BITCOIN_BLOCKTIME,
             gracePeriod: GRACE_PERIOD,
