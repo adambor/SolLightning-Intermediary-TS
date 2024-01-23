@@ -6,3 +6,5 @@ package-lock.json
 .idea
 dist
 src/plugins.ts
+server.cert
+server.key
