@@ -23,6 +23,9 @@ import {
 import * as express from "express";
 import * as cors from "cors";
 import {testnet} from "bitcoinjs-lib/src/networks";
+import * as http2 from "http2";
+
+const http2Express = require('http2-express-bridge')
 
 const bitcoin_chainparams = { ...testnet };
 bitcoin_chainparams.bip32 = {
@@ -207,9 +210,8 @@ async function main() {
 
     console.log("[Main]: Watchdogs started!");
 
-    const restServer = express();
+    const restServer = http2Express(express);
     restServer.use(cors());
-    restServer.use(express.json());
 
     const infoHandler = new InfoHandler(swapContract, "", swapHandlers);
 
@@ -221,7 +223,16 @@ async function main() {
 
     const listenPort = process.env.REST_PORT==null ? 4000 : parseInt(process.env.REST_PORT);
 
-    restServer.listen(listenPort);
+    const server = http2.createSecureServer(
+        {
+            key: await fs.readFile(process.env.SSL_KEY),
+            cert: await fs.readFile(process.env.SSL_CERT),
+            allowHTTP1: true
+        },
+        restServer
+    );
+
+    await new Promise<void>(resolve => server.listen(listenPort, () => resolve()));
 
     console.log("[Main]: Rest server listening on port: ", listenPort)
 
