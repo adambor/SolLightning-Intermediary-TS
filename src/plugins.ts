@@ -7,7 +7,7 @@ export function getEnabledPlugins(
     swapPrice: ISwapPrice,
     btcRpc: BitcoindRpc,
     btcRelay: BtcRelay<any, any, any>,
-    swapProgram: SwapContract<SolanaSwapData, any>,
+    swapProgram: SwapContract<SolanaSwapData, any, any, any>,
     chainEvents: ChainEvents<SolanaSwapData>
 ): IPlugin<SolanaSwapData>[] {
     return [];
