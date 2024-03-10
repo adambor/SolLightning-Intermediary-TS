@@ -19,11 +19,12 @@
   "license": "ISC",
   "dependencies": {
     "@types/bn.js": "^5.1.5",
+    "affiliate": "file:../../Plugins/affiliate",
     "bn.js": "^5.2.1",
     "btcrelay-bitcoind": "5.0.3",
     "cors": "^2.8.5",
     "crosslightning-base": "6.0.1",
-    "crosslightning-intermediary": "9.2.5",
+    "crosslightning-intermediary": "9.2.6-dev1",
     "crosslightning-solana": "5.0.19",
     "crypto": "^1.0.1",
     "dotenv": "^16.0.3",
@@ -31,6 +32,7 @@
     "http2-express-bridge": "1.0.7",
     "lightning": "10.3.1",
     "ln-service": "57.3.0",
+    "mail-notifier": "file:../../Plugins/mail-notifier",
     "typescript": "^4.9.5"
   },
   "devDependencies": {
