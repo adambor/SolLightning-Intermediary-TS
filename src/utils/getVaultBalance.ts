@@ -12,7 +12,7 @@ import * as BN from "bn.js";
 
 async function printBalance(swapContract: SolanaSwapProgram, token: PublicKey, decimals: number) {
 
-    const data: BN = await swapContract.getBalance(token, false);
+    const data: BN = await swapContract.getBalance(token, true);
 
     console.log(data==null ? "0" : (data.toNumber()/Math.pow(10, decimals)).toFixed(decimals));
 

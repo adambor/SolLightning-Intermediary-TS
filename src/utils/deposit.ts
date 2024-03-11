@@ -14,28 +14,35 @@ import {BitcoindRpc} from "btcrelay-bitcoind";
 
 async function deposit(amount: number, token: string) {
 
-    const amountBN = new BN(amount);
+    let decimals: number;
 
     let useToken;
     switch (token) {
         case "WBTC":
             useToken = WBTC_ADDRESS;
+            decimals = 8;
             break;
         case "USDC":
             useToken = USDC_ADDRESS;
+            decimals = 6;
             break;
         case "USDT":
             useToken = USDT_ADDRESS;
+            decimals = 6;
             break;
         case "WSOL":
             useToken = WSOL_ADDRESS;
+            decimals = 9;
             break;
         case "SOL":
             useToken = WSOL_ADDRESS;
+            decimals = 9;
             break;
         default:
             return false;
     }
+
+    const amountBN = new BN((amount*Math.pow(10, decimals)).toFixed(0));
 
     const bitcoinRpc = new BitcoindRpc(
         BtcRPCConfig.protocol,

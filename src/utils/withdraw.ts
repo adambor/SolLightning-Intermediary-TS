@@ -13,23 +13,35 @@ import {BitcoindRpc} from "btcrelay-bitcoind";
 
 async function withdraw(amount: number, token: string) {
 
+    let decimals: number;
+
     let useToken;
     switch (token) {
         case "WBTC":
             useToken = WBTC_ADDRESS;
+            decimals = 8;
             break;
         case "USDC":
             useToken = USDC_ADDRESS;
+            decimals = 6;
             break;
         case "USDT":
             useToken = USDT_ADDRESS;
+            decimals = 6;
             break;
         case "WSOL":
             useToken = WSOL_ADDRESS;
+            decimals = 9;
+            break;
+        case "SOL":
+            useToken = WSOL_ADDRESS;
+            decimals = 9;
             break;
         default:
             return false;
     }
+
+    const amountBN = new BN((amount*Math.pow(10, decimals)).toFixed(0));
 
     const bitcoinRpc = new BitcoindRpc(
         BtcRPCConfig.protocol,
@@ -41,7 +53,7 @@ async function withdraw(amount: number, token: string) {
     const btcRelay = new SolanaBtcRelay(AnchorSigner, bitcoinRpc);
     const swapContract = new SolanaSwapProgram(AnchorSigner, btcRelay, new StorageManager<StoredDataAccount>(""));
 
-    console.log("Withdrawal sent: ", await swapContract.withdraw(useToken, new BN(amount), true));
+    console.log("Withdrawal sent: ", await swapContract.withdraw(useToken, amountBN, true));
 
     return true;
 
@@ -50,12 +62,12 @@ async function withdraw(amount: number, token: string) {
 async function main() {
     if(process.argv.length<4) {
         console.error("Needs at least 2 arguments");
-        console.error("Usage: node withdraw.js <token:WBTC,USDC,USDT> <amount>");
+        console.error("Usage: node withdraw.js <token:WBTC,USDC,USDT,WSOL,SOL> <amount>");
         return;
     }
 
     const token = process.argv[2];
-    const amount = parseInt(process.argv[3]);
+    const amount = parseFloat(process.argv[3]);
 
     if(isNaN(amount)) {
         console.error("Invalid amount argument (not a number)");
@@ -63,7 +75,7 @@ async function main() {
     }
 
     if(!(await withdraw(amount, token))) {
-        console.error("Invalid token argument (must be one of WBTC, USDC, USDT)");
+        console.error("Invalid token argument (must be one of WBTC, USDC, USDT, WSOL, SOL)");
     }
 }
 

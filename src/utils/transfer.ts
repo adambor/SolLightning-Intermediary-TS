@@ -13,23 +13,35 @@ import {BitcoindRpc} from "btcrelay-bitcoind";
 
 async function withdraw(dstAddress: string, amount: number, token: string) {
 
+    let decimals: number;
+
     let useToken;
     switch (token) {
         case "WBTC":
             useToken = WBTC_ADDRESS;
+            decimals = 8;
             break;
         case "USDC":
             useToken = USDC_ADDRESS;
+            decimals = 6;
             break;
         case "USDT":
             useToken = USDT_ADDRESS;
+            decimals = 6;
             break;
         case "WSOL":
             useToken = WSOL_ADDRESS;
+            decimals = 9;
+            break;
+        case "SOL":
+            useToken = WSOL_ADDRESS;
+            decimals = 9;
             break;
         default:
             return false;
     }
+
+    const amountBN = new BN((amount*Math.pow(10, decimals)).toFixed(0));
 
     const bitcoinRpc = new BitcoindRpc(
         BtcRPCConfig.protocol,
@@ -41,7 +53,7 @@ async function withdraw(dstAddress: string, amount: number, token: string) {
     const btcRelay = new SolanaBtcRelay(AnchorSigner, bitcoinRpc);
     const swapContract = new SolanaSwapProgram(AnchorSigner, btcRelay, new StorageManager<StoredDataAccount>(""));
 
-    const result = await swapContract.transfer(useToken, new BN(amount), dstAddress, true);
+    const result = await swapContract.transfer(useToken, amountBN, dstAddress, true);
 
     console.log("Transfer sent: ", result);
 
@@ -52,12 +64,12 @@ async function withdraw(dstAddress: string, amount: number, token: string) {
 async function main() {
     if(process.argv.length<5) {
         console.error("Needs at least 3 arguments");
-        console.error("Usage: node withdraw.js <token:WBTC,USDC,USDT> <amount> <dstAddress>");
+        console.error("Usage: node transfer.js <token:WBTC,USDC,USDT,WSOL,SOL> <amount> <dstAddress>");
         return;
     }
 
     const token = process.argv[2];
-    const amount = parseInt(process.argv[3]);
+    const amount = parseFloat(process.argv[3]);
     const dstAddress = process.argv[4];
 
     if(isNaN(amount)) {
@@ -66,7 +78,7 @@ async function main() {
     }
 
     if(!(await withdraw(dstAddress, amount, token))) {
-        console.error("Invalid dstAddress or token argument (must be one of WBTC, USDC, USDT)");
+        console.error("Invalid dstAddress or token argument (must be one of WBTC, USDC, USDT, WSOL, SOL)");
     }
 }
 
