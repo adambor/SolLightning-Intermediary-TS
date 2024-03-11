@@ -13,7 +13,8 @@
     "deposit": "node dist/utils/deposit.js",
     "withdraw": "node dist/utils/withdraw.js",
     "getReputation": "node dist/utils/getReputation.js",
-    "getBalance": "node dist/utils/getBalance.js"
+    "getBalance": "node dist/utils/getBalance.js",
+    "getAddress": "node dist/utils/getAddress.js"
   },
   "author": "adambor",
   "license": "ISC",
