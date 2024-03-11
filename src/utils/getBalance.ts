@@ -8,12 +8,13 @@ import {SolanaBtcRelay, SolanaSwapProgram, StoredDataAccount} from "crosslightni
 import BtcRPC, {BtcRPCConfig} from "../btc/BtcRPC";
 import {StorageManager} from "crosslightning-intermediary";
 import {BitcoindRpc} from "btcrelay-bitcoind";
+import * as BN from "bn.js";
 
 async function printBalance(swapContract: SolanaSwapProgram, token: PublicKey) {
 
-    const data: any = await swapContract.program.account.userAccount.fetch(swapContract.SwapUserVault(AnchorSigner.publicKey, token));
+    const data: BN = await swapContract.getBalance(token, true);
 
-    console.log(data.amount.toString(10));
+    console.log(data==null ? "0" : data.toString(10));
 
 }
 
@@ -38,7 +39,7 @@ async function main() {
     console.log("USDT:");
     await printBalance(swapContract, USDT_ADDRESS);
 
-    console.log("WSOL:");
+    console.log("SOL/WSOL:");
     await printBalance(swapContract, WSOL_ADDRESS);
 
 }

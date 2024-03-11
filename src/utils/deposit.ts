@@ -30,6 +30,9 @@ async function deposit(amount: number, token: string) {
         case "WSOL":
             useToken = WSOL_ADDRESS;
             break;
+        case "SOL":
+            useToken = WSOL_ADDRESS;
+            break;
         default:
             return false;
     }
@@ -53,7 +56,7 @@ async function deposit(amount: number, token: string) {
 async function main() {
     if(process.argv.length<4) {
         console.error("Needs at least 2 arguments");
-        console.error("Usage: node deposit.js <token:WBTC,USDC,USDT> <amount>");
+        console.error("Usage: node deposit.js <token:WBTC,USDC,USDT,WSOL,SOL> <amount>");
         return;
     }
 
@@ -66,7 +69,7 @@ async function main() {
     }
 
     if(!(await deposit(amount, token))) {
-        console.error("Invalid token argument (must be one of WBTC, USDC, USDT)");
+        console.error("Invalid token argument (must be one of WBTC, USDC, USDT, WSOL, SOL)");
     }
 }
 
