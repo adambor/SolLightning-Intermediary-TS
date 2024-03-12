@@ -221,6 +221,8 @@ async function main() {
 
     infoHandler.startRestServer(restServer);
 
+    await PluginManager.onHttpServerStarted(restServer);
+
     const listenPort = process.env.REST_PORT==null ? 4000 : parseInt(process.env.REST_PORT);
 
     const server = http2.createSecureServer(
