@@ -68,7 +68,7 @@ async function main() {
     }
 
     const token = process.argv[2];
-    const amount = parseInt(process.argv[3]);
+    const amount = parseFloat(process.argv[3]);
 
     if(isNaN(amount)) {
         console.error("Invalid amount argument (not a number)");
