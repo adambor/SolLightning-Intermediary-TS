@@ -33,7 +33,7 @@ bitcoin_chainparams.bip32 = {
     private: 0x045f18bc,
 };
 
-import {SolanaBtcRelay, SolanaSwapData, SolanaSwapProgram, StoredDataAccount} from "crosslightning-solana";
+import {SolanaBtcRelay, SolanaFeeEstimator, SolanaSwapData, SolanaSwapProgram, StoredDataAccount} from "crosslightning-solana";
 import BtcRPC, {BtcRPCConfig} from "./btc/BtcRPC";
 import * as BN from "bn.js";
 import {AUTHORIZATION_TIMEOUT} from "./constants/Constants";
@@ -79,8 +79,22 @@ async function main() {
 
     console.log("[Main]: Nonce initialized!");
 
+    let maxFee: number = process.env.SOL_MAX_FEE_MICRO_LAMPORTS==null ? null : parseInt(process.env.SOL_MAX_FEE_MICRO_LAMPORTS);
+    if(maxFee!=null && !isNaN(maxFee)) {
+        console.log("[Main]: Using max fee: "+maxFee+"!");
+    } else {
+        maxFee = null;
+    }
+
     const btcRelay = new SolanaBtcRelay(AnchorSigner, bitcoinRpc, process.env.BTC_RELAY_CONTRACT_ADDRESS);
-    const swapContract = new SolanaSwapProgram(AnchorSigner, btcRelay, new StorageManager<StoredDataAccount>(directory+"/solaccounts"), process.env.SWAP_CONTRACT_ADDRESS);
+    const swapContract = new SolanaSwapProgram(
+        AnchorSigner,
+        btcRelay,
+        new StorageManager<StoredDataAccount>(directory+"/solaccounts"),
+        process.env.SWAP_CONTRACT_ADDRESS,
+        null,
+        maxFee==null ? null : new SolanaFeeEstimator(AnchorSigner.connection, maxFee, 8, 100, "auto")
+    );
     const chainEvents = new SolanaChainEvents(directory, AnchorSigner, swapContract);
 
     await swapContract.start();
