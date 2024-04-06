@@ -46,6 +46,7 @@ import {BinanceSwapPrice, FromBtcAbs, FromBtcLnAbs,
 import {BitcoindRpc} from "btcrelay-bitcoind";
 import {SolanaChainEvents} from "crosslightning-solana/dist/solana/events/SolanaChainEvents";
 import {getEnabledPlugins} from "./plugins";
+import {Jito} from "./Jito";
 
 const SECURITY_DEPOSIT_APY = 0.2; //20% p.a.
 
@@ -95,6 +96,7 @@ async function main() {
         null,
         maxFee==null ? null : new SolanaFeeEstimator(AnchorSigner.connection, maxFee, 8, 100, "auto")
     );
+    Jito.applyJito(swapContract);
     const chainEvents = new SolanaChainEvents(directory, AnchorSigner, swapContract);
 
     await swapContract.start();
