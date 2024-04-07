@@ -75,7 +75,7 @@ export class Jito {
 
             if(request.ok) {
                 const parsedResponse = await request.json();
-                console.log(parsedResponse);
+                // console.log(parsedResponse);
                 return parsedResponse.result;
             }
 
