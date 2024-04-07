@@ -17,7 +17,6 @@ export class Jito {
                 const unitLimitIx: TransactionInstruction = unitLimitIxIndex==-1 ? null : tx.tx.instructions[unitLimitIxIndex];
                 // console.log("Unit limit IX: ", unitLimitIx?.data);
                 const unitLimit: number = unitLimitIx==null ? 200000 : unitLimitIx.data.readUint32LE(1);
-                if(unitLimitIxIndex!=-1) tx.tx.instructions.splice(unitLimitIxIndex, 1);
 
                 const unitPriceIxIndex = tx.tx.instructions.findIndex(ix => ix.programId.equals(ComputeBudgetProgram.programId) && ix.data[0]===0x03);
                 const unitPriceIx: TransactionInstruction = unitPriceIxIndex==-1 ? null : tx.tx.instructions[unitPriceIxIndex];
