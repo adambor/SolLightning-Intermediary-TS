@@ -46,7 +46,9 @@ import {BinanceSwapPrice, FromBtcAbs, FromBtcLnAbs,
 import {BitcoindRpc} from "btcrelay-bitcoind";
 import {SolanaChainEvents} from "crosslightning-solana/dist/solana/events/SolanaChainEvents";
 import {getEnabledPlugins} from "./plugins";
-import {Jito} from "./Jito";
+
+const jitoPubkey = "DttWaMuVvTiduZRnguLF7jNxTgiMBZ1hyAumKUiL2KRL";
+const jitoEndpoint = "https://frankfurt.mainnet.block-engine.jito.wtf/api/v1/transactions";
 
 const SECURITY_DEPOSIT_APY = 0.2; //20% p.a.
 
@@ -84,7 +86,7 @@ async function main() {
     if(maxFee!=null && !isNaN(maxFee)) {
         console.log("[Main]: Using max fee: "+maxFee+"!");
     } else {
-        maxFee = null;
+        maxFee = 250000;
     }
 
     const btcRelay = new SolanaBtcRelay(AnchorSigner, bitcoinRpc, process.env.BTC_RELAY_CONTRACT_ADDRESS);
@@ -94,9 +96,12 @@ async function main() {
         new StorageManager<StoredDataAccount>(directory+"/solaccounts"),
         process.env.SWAP_CONTRACT_ADDRESS,
         null,
-        maxFee==null ? null : new SolanaFeeEstimator(AnchorSigner.connection, maxFee, 8, 100, "auto")
+        new SolanaFeeEstimator(AnchorSigner.connection, maxFee, 8, 100, "auto", {
+            address: jitoPubkey,
+            endpoint: jitoEndpoint,
+            getStaticFee: () => new BN(100000)
+        })
     );
-    Jito.applyJito(swapContract);
     const chainEvents = new SolanaChainEvents(directory, AnchorSigner, swapContract);
 
     await swapContract.start();
