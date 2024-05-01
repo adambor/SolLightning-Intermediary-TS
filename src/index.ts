@@ -12,7 +12,6 @@ bitcoin_chainparams.bip32 = {
 };
 
 import {SolanaBtcRelay, SolanaFeeEstimator, SolanaSwapData, SolanaSwapProgram, StoredDataAccount} from "crosslightning-solana";
-import {BtcRPCConfig} from "./btc/BtcRPC";
 import {BinanceSwapPrice, FromBtcAbs, FromBtcLnAbs,
     InfoHandler,
     SwapHandler, ToBtcAbs, ToBtcLnAbs, StorageManager, FromBtcSwapAbs, ToBtcSwapAbs, PluginManager,
@@ -21,7 +20,6 @@ import {BinanceSwapPrice, FromBtcAbs, FromBtcLnAbs,
 import {BitcoindRpc} from "btcrelay-bitcoind";
 import {SolanaChainEvents} from "crosslightning-solana/dist/solana/events/SolanaChainEvents";
 import {IntermediaryConfig} from "./IntermediaryConfig";
-import {SolanaIntermediaryRunner} from "./runner/SolanaIntermediaryRunner";
 import {SolanaIntermediaryRunnerWrapper} from "./runner/SolanaIntermediaryRunnerWrapper";
 
 async function main() {
@@ -40,11 +38,11 @@ async function main() {
     );
 
     const bitcoinRpc = new BitcoindRpc(
-        BtcRPCConfig.protocol,
-        BtcRPCConfig.user,
-        BtcRPCConfig.pass,
-        BtcRPCConfig.host,
-        BtcRPCConfig.port
+        IntermediaryConfig.BITCOIND.PROTOCOL,
+        IntermediaryConfig.BITCOIND.RPC_USERNAME,
+        IntermediaryConfig.BITCOIND.RPC_PASSWORD,
+        IntermediaryConfig.BITCOIND.HOST,
+        IntermediaryConfig.BITCOIND.PORT
     );
 
     console.log("[Main]: Running in bitcoin "+IntermediaryConfig.BITCOIND.NETWORK+" mode!");
