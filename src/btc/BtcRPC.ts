@@ -1,11 +1,12 @@
 import * as RpcClient from "bitcoind-rpc";
+import {IntermediaryConfig} from "../IntermediaryConfig";
 
 export const BtcRPCConfig = {
-    protocol: process.env.BTC_PROTOCOL,
-    user: process.env.BTC_RPC_USERNAME,
-    pass: process.env.BTC_RPC_PASSWORD,
-    host: process.env.BTC_NODE_HOST,
-    port: parseInt(process.env.BTC_PORT),
+    protocol: IntermediaryConfig.BITCOIND.PROTOCOL,
+    user: IntermediaryConfig.BITCOIND.RPC_USERNAME,
+    pass: IntermediaryConfig.BITCOIND.RPC_PASSWORD,
+    host:  IntermediaryConfig.BITCOIND.HOST,
+    port: IntermediaryConfig.BITCOIND.PORT
 };
 
 const BtcRPC = new RpcClient(BtcRPCConfig);

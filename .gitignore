@@ -1,6 +1,4 @@
 storage
-.env
-_.env
 node_modules
 package-lock.json
 .idea
@@ -8,3 +6,5 @@ dist
 src/plugins.ts
 server.cert
 server.key
+config/config.yaml
+config/_config.yaml
