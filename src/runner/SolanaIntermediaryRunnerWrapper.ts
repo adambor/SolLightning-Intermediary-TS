@@ -1,5 +1,5 @@
 import {BitcoinRpc, BtcRelay, ChainEvents, ChainSwapType, SwapContract, SwapData} from "crosslightning-base";
-import {ISwapPrice} from "crosslightning-intermediary";
+import {ISwapPrice, PluginManager} from "crosslightning-intermediary";
 import {SolanaIntermediaryRunner} from "./SolanaIntermediaryRunner";
 import * as BN from "bn.js";
 import {
@@ -8,7 +8,7 @@ import {
     cmdStringParser,
     CommandHandler,
     createCommand
-} from "../commands/CommandHandler";
+} from "crosslightning-server-base";
 import {AnchorProvider} from "@coral-xyz/anchor";
 import {Keypair, PublicKey} from "@solana/web3.js";
 import {getUnauthenticatedLndGrpc} from "../btc/LND";
@@ -497,12 +497,34 @@ export class SolanaIntermediaryRunnerWrapper<T extends SwapData> extends SolanaI
                         return "Airdrop transaction confirmed!";
                     }
                 }
+            ),
+            createCommand(
+                "plugins",
+                "Shows the list of loaded plugins",
+                {
+                    args: {},
+                    parser: async (args, sendLine) => {
+                        const reply: string[] = [];
+                        reply.push("Loaded plugins:");
+                        for(let [name, plugin] of PluginManager.plugins.entries()) {
+                            reply.push("    - "+name+" : "+(plugin.description || "No description"));
+                        }
+                        if(reply.length===1) reply.push("   No loaded plugins");
+                        return reply.join("\n");
+                    }
+                }
             )
-        ], process.env.CLI_LISTEN_ADDRESS, parseInt(process.env.CLI_LISTEN_PORT));
+        ], process.env.CLI_LISTEN_ADDRESS, parseInt(process.env.CLI_LISTEN_PORT), "Welcome to atomiq intermediary (LP node) CLI!");
     }
 
-    init() {
-        return this.cmdHandler.init().then(() => super.init());
+    async init() {
+        await this.cmdHandler.init();
+        await super.init();
+        for(let plugin of PluginManager.plugins.values()) {
+            if(plugin.getCommands!=null) {
+                plugin.getCommands().forEach(cmd => this.cmdHandler.registerCommand(cmd));
+            }
+        }
     }
 
 }

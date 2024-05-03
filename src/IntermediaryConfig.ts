@@ -7,11 +7,25 @@ import {
     numberParser,
     objectParser,
     parseConfig, percentageToPpmParser,
-    publicKeyParser,
-    stringParser
-} from "./config/Config";
+    stringParser,
+    dictionaryParser,
+    ConfigParser
+} from "crosslightning-server-base";
 import * as fs from "fs";
 import {parse} from "yaml";
+import {PublicKey} from "@solana/web3.js";
+
+export const publicKeyParser: (optional?: boolean) => ConfigParser<PublicKey> = (optional?: boolean) => (data: any) => {
+    if(data==null) {
+        if(optional) {
+            return null;
+        } else {
+            throw new Error("Data is null");
+        }
+    }
+    if(typeof(data)!=="string") throw new Error("Invalid data, must be string");
+    return new PublicKey(data);
+};
 
 const IntermediaryConfigTemplate = {
     SOLANA: objectParser({
@@ -83,9 +97,20 @@ const IntermediaryConfigTemplate = {
     ),
 
     SSL: objectParser({
-        CERT_FILE: stringParser(null, null),
-        KEY_FILE: stringParser(null, null)
-    }, null, true)
+        CERT_FILE: stringParser(),
+        KEY_FILE: stringParser()
+    }, null, true),
+
+    SSL_AUTO: objectParser({
+        IP_ADDRESS_FILE: stringParser(),
+        HTTP_LISTEN_PORT: numberParser(false, 0, 65535)
+    }, null, true),
+
+    PLUGINS: dictionaryParser(
+        stringParser(),
+        null,
+        true
+    )
 };
 
 export let IntermediaryConfig = parseConfig(parse(fs.readFileSync(process.env.CONFIG_FILE).toString()), IntermediaryConfigTemplate);

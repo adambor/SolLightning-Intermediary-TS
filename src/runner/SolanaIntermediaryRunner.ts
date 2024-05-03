@@ -9,7 +9,6 @@ import {
 } from "../constants/Constants";
 import {IntermediaryConfig} from "../IntermediaryConfig";
 import * as BN from "bn.js";
-import {BtcRPCConfig} from "../btc/BtcRPC";
 import * as http2 from "http2";
 import * as fs from "fs/promises";
 import {
@@ -26,6 +25,8 @@ import {AuthenticatedLnd, UnauthenticatedLnd} from "lightning";
 import * as lncli from "ln-service";
 import {AnchorProvider} from "@coral-xyz/anchor";
 import {Keypair, PublicKey} from "@solana/web3.js";
+import {LetsEncryptACME} from "../LetsEncryptACME";
+import * as tls from "node:tls";
 
 
 export class SolanaIntermediaryRunner<T extends SwapData> {
@@ -76,10 +77,10 @@ export class SolanaIntermediaryRunner<T extends SwapData> {
         this.chainEvents = chainEvents;
 
         this.btcFeeEstimator = new OneDollarFeeEstimator(
-            BtcRPCConfig.host,
-            BtcRPCConfig.port,
-            BtcRPCConfig.user,
-            BtcRPCConfig.pass
+            IntermediaryConfig.BITCOIND.HOST,
+            IntermediaryConfig.BITCOIND.PORT,
+            IntermediaryConfig.BITCOIND.RPC_USERNAME,
+            IntermediaryConfig.BITCOIND.RPC_PASSWORD
         );
     }
 
@@ -212,16 +213,19 @@ export class SolanaIntermediaryRunner<T extends SwapData> {
         console.log("[Main] LND node ready, continue!");
     }
 
-    registerPlugins(): Promise<void> {
-        getEnabledPlugins(
-            this.prices,
-            this.bitcoinRpc,
-            this.btcRelay,
+    async registerPlugins(): Promise<void> {
+        const plugins = await getEnabledPlugins();
+        plugins.forEach(pluginData => PluginManager.registerPlugin(pluginData.name, pluginData.plugin));
+        await PluginManager.enable(
             this.swapContract,
-            this.chainEvents
-        ).forEach(plugin => PluginManager.registerPlugin(plugin));
-
-        return PluginManager.enable(this.swapContract, this.btcRelay, this.chainEvents, this.LND);
+            this.btcRelay,
+            this.chainEvents,
+            this.bitcoinRpc,
+            this.LND,
+            this.prices,
+            this.tokens,
+            process.env.PLUGINS_DIR
+        );
     }
 
     registerSwapHandlers(): void {
@@ -327,7 +331,80 @@ export class SolanaIntermediaryRunner<T extends SwapData> {
     }
 
     async startRestServer() {
-        const restServer = IntermediaryConfig.SSL==null ? express() : http2Express(express);
+
+        let useSsl = false;
+        let key: Buffer;
+        let cert: Buffer;
+
+        let server: http2.Http2Server | http2.Http2SecureServer;
+
+        const renewCallback = (_key: Buffer, _cert: Buffer) => {
+            key = _key;
+            cert = _cert;
+            if(server instanceof tls.Server) {
+                server.setSecureContext({
+                    key,
+                    cert
+                });
+            }
+        }
+
+        if(IntermediaryConfig.SSL_AUTO!=null) {
+            console.log("[Main]: Using automatic SSL cert provision through Let's Encrypt & dns proxy: "+process.env.DNS_PROXY);
+            useSsl = true;
+            let address: string;
+            try {
+                const addressBuff = await fs.readFile(IntermediaryConfig.SSL_AUTO.IP_ADDRESS_FILE);
+                address = addressBuff.toString();
+            } catch (e) {
+                console.error(e);
+                throw new Error("Cannot read SSL_AUTO.IP_ADDRESS_FILE");
+            }
+            console.log("[Main]: IP address: "+address);
+            const dir = this.directory+"/ssl";
+            try {
+                await fs.mkdir(dir);
+            } catch (e) {}
+
+            const ipWithDashes = address.replace(new RegExp(".", 'g'), "-");
+            const acme = new LetsEncryptACME(ipWithDashes+"."+process.env.DNS_PROXY, dir+"/key.pem", dir+"/cert.pem", IntermediaryConfig.SSL_AUTO.HTTP_LISTEN_PORT);
+
+            await acme.init(renewCallback);
+        }
+        if(IntermediaryConfig.SSL!=null) {
+            console.log("[Main]: Using existing SSL certs");
+            useSsl = true;
+
+            key = await fs.readFile(IntermediaryConfig.SSL.KEY_FILE);
+            cert = await fs.readFile(IntermediaryConfig.SSL.CERT_FILE);
+
+            (async() => {
+                for await (let change of fs.watch(IntermediaryConfig.SSL.KEY_FILE)) {
+                    if(change.eventType==="change") {
+                        try {
+                            renewCallback(await fs.readFile(IntermediaryConfig.SSL.KEY_FILE), cert);
+                        } catch (e) {
+                            console.log("SSL KEY watcher error: ", e);
+                            console.error(e);
+                        }
+                    }
+                }
+            })();
+            (async() => {
+                for await (let change of fs.watch(IntermediaryConfig.SSL.CERT_FILE)) {
+                    if(change.eventType==="change") {
+                        try {
+                            renewCallback(key, await fs.readFile(IntermediaryConfig.SSL.CERT_FILE));
+                        } catch (e) {
+                            console.log("SSL CERT watcher error: ", e);
+                            console.error(e);
+                        }
+                    }
+                }
+            })();
+        }
+
+        const restServer = http2Express(express);
         restServer.use(cors());
 
         for(let swapHandler of this.swapHandlers) {
@@ -339,21 +416,22 @@ export class SolanaIntermediaryRunner<T extends SwapData> {
 
         const listenPort = process.env.REST_PORT==null ? 4000 : parseInt(process.env.REST_PORT);
 
-        if(IntermediaryConfig.SSL==null) {
-            restServer.listen(listenPort);
+        if(useSsl) {
+            server = http2.createServer(restServer);
         } else {
-            const server = http2.createSecureServer(
+            server = http2.createSecureServer(
                 {
-                    key: await fs.readFile(IntermediaryConfig.SSL.KEY_FILE),
-                    cert: await fs.readFile(IntermediaryConfig.SSL.CERT_FILE),
+                    key,
+                    cert,
                     allowHTTP1: true
                 },
                 restServer
             );
-            await new Promise<void>(resolve => server.listen(listenPort, () => resolve()));
         }
 
-        console.log("[Main]: Rest server listening on port: ", listenPort);
+        await new Promise<void>(resolve => server.listen(listenPort, () => resolve()));
+
+        console.log("[Main]: Rest server listening on port: "+listenPort+" ssl: "+useSsl);
     }
 
     async init() {
