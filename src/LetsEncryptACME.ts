@@ -25,7 +25,7 @@ export class LetsEncryptACME {
         this.renewCallback = renewCallback;
 
         this.client = new Client({
-            directoryUrl: directory.letsencrypt.staging,
+            directoryUrl: directory.letsencrypt.production,
             accountKey: await crypto.createPrivateKey()
         });
 
