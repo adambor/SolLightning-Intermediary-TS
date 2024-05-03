@@ -91,7 +91,8 @@ export class LetsEncryptACME {
                 });
 
                 return new Promise<void>((resolve, reject) => {
-                    httpServer.listen(this.listenPort, resolve)
+                    httpServer.on("error", e => reject(e));
+                    httpServer.listen(this.listenPort, resolve);
                 })
             },
             challengeRemoveFn: (authz, challenge) => {

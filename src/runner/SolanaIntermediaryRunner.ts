@@ -433,7 +433,10 @@ export class SolanaIntermediaryRunner<T extends SwapData> {
             );
         }
 
-        await new Promise<void>(resolve => server.listen(listenPort, () => resolve()));
+        await new Promise<void>((resolve, reject) => {
+            server.on("error", e => reject(e));
+            server.listen(listenPort, () => resolve());
+        });
 
         console.log("[Main]: Rest server listening on port: "+listenPort+" ssl: "+useSsl);
     }
