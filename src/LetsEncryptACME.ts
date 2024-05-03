@@ -29,7 +29,20 @@ export class LetsEncryptACME {
             accountKey: await crypto.createPrivateKey()
         });
 
-        await this.renewOrCreate();
+        const existingKey = await fs.readFile(this.keyFile).catch(e => null);
+        const existingCert = await fs.readFile(this.certFile).catch(e => null);
+
+        const promise = this.renewOrCreate();
+
+        if(existingKey==null || existingCert==null) {
+            await promise;
+        } else {
+            promise.catch(e => {
+                console.log("Certificate renewal error: ", e);
+                console.error(e);
+            });
+            if(this.renewCallback!=null) this.renewCallback(existingKey, existingCert);
+        }
 
         setInterval(() => this.renewOrCreate().catch(e => {
             console.log("Certificate renewal error: ", e);
@@ -59,7 +72,7 @@ export class LetsEncryptACME {
                 httpServer = createServer((req, res) => {
                     if (req.url.match(/\/\.well-known\/acme-challenge\/.+/)) {
                         const token = req.url.split('/').pop();
-                        console.log(`Received challenge request for token=${token}`);
+                        console.log(`[ACME]: Received challenge request for token=${token}`);
 
                         if(token!==challenge.token) {
                             res.writeHead(404);
