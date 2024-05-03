@@ -11,14 +11,14 @@ BITCOIND:
   HOST: "127.0.0.1"
   RPC_USERNAME: "user"
   RPC_PASSWORD: "password"
-  NETWORK: "mainnet"
+  NETWORK: "testnet"
 
 #LND RPC
 LND:
   CERT_FILE: "~/.lnd/tls.cert"
   MACAROON_FILE: "~/.lnd/data/chain/bitcoin/testnet/admin.macaroon"
-  NODE_HOST: "127.0.0.1"
-  NODE_PORT: 20009
+  HOST: "127.0.0.1"
+  PORT: 20009
 
 #LN setup
 LN:

@@ -22,8 +22,8 @@ BITCOIND:
 LND:
   CERT_FILE: "~/.lnd/tls.cert"
   MACAROON_FILE: "~/.lnd/data/chain/bitcoin/mainnet/admin.macaroon"
-  NODE_HOST: "127.0.0.1"
-  NODE_PORT: 10009
+  HOST: "127.0.0.1"
+  PORT: 10009
 #  MNEMONIC_FILE: "./wallet.txt"
 #  WALLET_PASSWORD_FILE: "./password.txt"
 #  CERT_FILE: "~/.lnd/tls.cert"
