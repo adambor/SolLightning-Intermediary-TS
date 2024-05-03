@@ -66,3 +66,6 @@ ASSETS:
 #  CERT_FILE: "./server.cert"
 #  KEY_FILE: "./server.key"
 
+#SSL_AUTO:
+#  IP_ADDRESS_FILE: "./address.txt"
+#  HTTP_LISTEN_PORT: 80

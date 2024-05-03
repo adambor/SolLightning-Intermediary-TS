@@ -349,6 +349,8 @@ export class SolanaIntermediaryRunner<T extends SwapData> {
             }
         }
 
+        const listenPort = process.env.REST_PORT==null ? 4000 : parseInt(process.env.REST_PORT);
+
         if(IntermediaryConfig.SSL_AUTO!=null) {
             console.log("[Main]: Using automatic SSL cert provision through Let's Encrypt & dns proxy: "+process.env.DNS_PROXY);
             useSsl = true;
@@ -372,6 +374,8 @@ export class SolanaIntermediaryRunner<T extends SwapData> {
             const acme = new LetsEncryptACME(dns, dir+"/key.pem", dir+"/cert.pem", IntermediaryConfig.SSL_AUTO.HTTP_LISTEN_PORT);
 
             await acme.init(renewCallback);
+
+            await fs.writeFile(this.directory+"/url.txt", "https://"+dns+":"+listenPort);
         }
         if(IntermediaryConfig.SSL!=null) {
             console.log("[Main]: Using existing SSL certs");
@@ -415,8 +419,6 @@ export class SolanaIntermediaryRunner<T extends SwapData> {
         this.infoHandler.startRestServer(restServer);
 
         await PluginManager.onHttpServerStarted(restServer);
-
-        const listenPort = process.env.REST_PORT==null ? 4000 : parseInt(process.env.REST_PORT);
 
         if(!useSsl) {
             server = http2.createServer(restServer);
