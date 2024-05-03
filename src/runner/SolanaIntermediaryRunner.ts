@@ -367,8 +367,9 @@ export class SolanaIntermediaryRunner<T extends SwapData> {
             } catch (e) {}
 
             const ipWithDashes = address.replace(new RegExp("\\.", 'g'), "-");
-            console.log("[Main]: Domain name: "+address);
-            const acme = new LetsEncryptACME(ipWithDashes+"."+process.env.DNS_PROXY, dir+"/key.pem", dir+"/cert.pem", IntermediaryConfig.SSL_AUTO.HTTP_LISTEN_PORT);
+            const dns = ipWithDashes+"."+process.env.DNS_PROXY;
+            console.log("[Main]: Domain name: "+dns);
+            const acme = new LetsEncryptACME(dns, dir+"/key.pem", dir+"/cert.pem", IntermediaryConfig.SSL_AUTO.HTTP_LISTEN_PORT);
 
             await acme.init(renewCallback);
         }
