@@ -418,7 +418,7 @@ export class SolanaIntermediaryRunner<T extends SwapData> {
 
         const listenPort = process.env.REST_PORT==null ? 4000 : parseInt(process.env.REST_PORT);
 
-        if(useSsl) {
+        if(!useSsl) {
             server = http2.createServer(restServer);
         } else {
             server = http2.createSecureServer(
