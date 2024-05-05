@@ -379,13 +379,19 @@ export class SolanaIntermediaryRunner<T extends SwapData> extends EventEmitter {
             console.log("[Main]: Using automatic SSL cert provision through Let's Encrypt & dns proxy: "+process.env.DNS_PROXY);
             useSsl = true;
             let address: string;
-            try {
-                const addressBuff = await fs.readFile(IntermediaryConfig.SSL_AUTO.IP_ADDRESS_FILE);
-                address = addressBuff.toString();
-            } catch (e) {
-                console.error(e);
-                throw new Error("Cannot read SSL_AUTO.IP_ADDRESS_FILE");
+            if(IntermediaryConfig.SSL_AUTO.IP_ADDRESS_FILE!=null) {
+                try {
+                    const addressBuff = await fs.readFile(IntermediaryConfig.SSL_AUTO.IP_ADDRESS_FILE);
+                    address = addressBuff.toString();
+                } catch (e) {
+                    console.error(e);
+                    throw new Error("Cannot read SSL_AUTO.IP_ADDRESS_FILE");
+                }
+            } else {
+                const publicIpLib = await import("public-ip");
+                address = await publicIpLib.publicIpv4();
             }
+            if(address==null) throw new Error("Cannot get IP address of the node!");
             console.log("[Main]: IP address: "+address);
             const dir = this.directory+"/ssl";
             try {

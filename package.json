@@ -41,6 +41,7 @@
     "ln-service": "57.3.0",
     "mail-notifier": "file:../../Plugins/mail-notifier",
     "minimist": "1.2.8",
+    "public-ip": "6.0.2",
     "tiny-secp256k1": "2.2.3",
     "typescript": "^4.9.5",
     "yaml": "2.4.1"

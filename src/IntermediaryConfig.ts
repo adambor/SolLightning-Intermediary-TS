@@ -102,7 +102,7 @@ const IntermediaryConfigTemplate = {
     }, null, true),
 
     SSL_AUTO: objectParser({
-        IP_ADDRESS_FILE: stringParser(),
+        IP_ADDRESS_FILE: stringParser(null, null, true),
         HTTP_LISTEN_PORT: numberParser(false, 0, 65535)
     }, null, true),
 
