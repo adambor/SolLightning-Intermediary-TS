@@ -1,6 +1,6 @@
 import {BitcoinRpc, BtcRelay, ChainEvents, ChainSwapType, SwapContract, SwapData} from "crosslightning-base";
 import {ISwapPrice, PluginManager} from "crosslightning-intermediary";
-import {SolanaIntermediaryRunner} from "./SolanaIntermediaryRunner";
+import {SolanaInitState, SolanaIntermediaryRunner} from "./SolanaIntermediaryRunner";
 import * as BN from "bn.js";
 import {
     cmdEnumParser,
@@ -14,6 +14,9 @@ import {Keypair, PublicKey} from "@solana/web3.js";
 import {getUnauthenticatedLndGrpc} from "../btc/LND";
 import * as lncli from "ln-service";
 import {fromDecimal, toDecimal} from "../Utils";
+import {getP2wpkhPubkey} from "../chains/solana/signer/AnchorSigner";
+import * as bitcoin from "bitcoinjs-lib";
+import {BITCOIN_NETWORK} from "../constants/Constants";
 
 export class SolanaIntermediaryRunnerWrapper<T extends SwapData> extends SolanaIntermediaryRunner<T> {
 
@@ -79,6 +82,7 @@ export class SolanaIntermediaryRunnerWrapper<T extends SwapData> extends SolanaI
 
                         const balance = await this.swapContract.getBalance(this.swapContract.getNativeCurrencyAddress(), false);
                         reply.push("Intermediary status:");
+                        reply.push("    Status: " + this.initState);
                         reply.push("    Funds: " + (balance.toNumber()/Math.pow(10, 9)).toFixed(9));
                         reply.push("    Has enough funds (>0.1 SOL): " + (balance.gt(new BN(100000000)) ? "yes" : "no"));
 
@@ -99,7 +103,16 @@ export class SolanaIntermediaryRunnerWrapper<T extends SwapData> extends SolanaI
                             format: "p2wpkh"
                         }).catch(e => console.error(e));
                         if(resp==null) {
-                            reply.push("Bitcoin address: unknown (LND node unresponsive - not initialized?)");
+                            const pubkey = getP2wpkhPubkey();
+                            if(pubkey!=null) {
+                                const address = bitcoin.payments.p2wpkh({
+                                    pubkey,
+                                    network: BITCOIN_NETWORK
+                                }).address;
+                                reply.push("Bitcoin address: "+address);
+                            } else {
+                                reply.push("Bitcoin address: unknown (LND node unresponsive - not initialized?)");
+                            }
                         } else {
                             reply.push("Bitcoin address: "+resp.address);
                         }

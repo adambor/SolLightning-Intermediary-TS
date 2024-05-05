@@ -27,9 +27,24 @@ import {AnchorProvider} from "@coral-xyz/anchor";
 import {Keypair, PublicKey} from "@solana/web3.js";
 import {LetsEncryptACME} from "../LetsEncryptACME";
 import * as tls from "node:tls";
+import {EventEmitter} from "node:events";
 
+export enum SolanaInitState {
+    STARTING="starting",
+    WAIT_BTC_RPC="wait_btc_rpc",
+    WAIT_LND_WALLET="wait_lnd_wallet",
+    WAIT_LND_SYNC="wait_lnd_sync",
+    CONTRACT_INIT="wait_contract_init",
+    LOAD_PLUGINS="load_plugins",
+    REGISTER_HANDLERS="register_handlers",
+    INIT_HANDLERS="init_handlers",
+    INIT_EVENTS="init_events",
+    INIT_WATCHDOGS="init_watchdogs",
+    START_REST="start_rest",
+    READY="ready"
+}
 
-export class SolanaIntermediaryRunner<T extends SwapData> {
+export class SolanaIntermediaryRunner<T extends SwapData> extends EventEmitter {
 
     readonly directory: string;
     readonly tokens: {
@@ -51,6 +66,14 @@ export class SolanaIntermediaryRunner<T extends SwapData> {
     infoHandler: InfoHandler<T>;
     LND: AuthenticatedLnd;
 
+    initState: SolanaInitState = SolanaInitState.STARTING;
+
+    setState(newState: SolanaInitState) {
+        const oldState = this.initState;
+        this.initState = newState;
+        super.emit("state", newState, oldState);
+    }
+
     constructor(
         directory: string,
         signer: (AnchorProvider & {signer: Keypair}),
@@ -66,6 +89,7 @@ export class SolanaIntermediaryRunner<T extends SwapData> {
         swapContract: SwapContract<T, any, any, any>,
         chainEvents: ChainEvents<T>
     ) {
+        super();
         this.directory = directory;
         this.signer = signer;
         this.tokens = tokens;
@@ -442,36 +466,48 @@ export class SolanaIntermediaryRunner<T extends SwapData> {
     }
 
     async init() {
+        this.setState(SolanaInitState.WAIT_BTC_RPC);
         await this.waitForBitcoinRpc();
+        this.setState(SolanaInitState.WAIT_LND_WALLET);
         await this.waitForLNDWallet();
+        this.setState(SolanaInitState.WAIT_LND_SYNC);
         this.LND = getAuthenticatedLndGrpc();
         await this.waitForLNDSync();
 
+        this.setState(SolanaInitState.CONTRACT_INIT);
         await this.swapContract.start();
         console.log("[Main]: Swap contract initialized!");
 
+        this.setState(SolanaInitState.LOAD_PLUGINS);
         await this.registerPlugins();
 
         console.log("[Main]: Plugins registered!");
 
+        this.setState(SolanaInitState.REGISTER_HANDLERS);
         this.registerSwapHandlers();
         this.infoHandler = new InfoHandler<T>(this.swapContract, "", this.swapHandlers);
 
         console.log("[Main]: Swap handlers registered!");
 
+        this.setState(SolanaInitState.INIT_HANDLERS);
         await this.initSwapHandlers();
 
         console.log("[Main]: Swap handlers initialized!");
 
+        this.setState(SolanaInitState.INIT_EVENTS);
         await this.chainEvents.init();
 
         console.log("[Main]: Chain events synchronized!");
 
+        this.setState(SolanaInitState.INIT_WATCHDOGS);
         await this.startHandlerWatchdogs();
 
         console.log("[Main]: Watchdogs started!");
 
+        this.setState(SolanaInitState.START_REST);
         await this.startRestServer();
+
+        this.setState(SolanaInitState.READY);
     }
 
 }
