@@ -388,7 +388,8 @@ export class SolanaIntermediaryRunner<T extends SwapData> extends EventEmitter {
                     throw new Error("Cannot read SSL_AUTO.IP_ADDRESS_FILE");
                 }
             } else {
-                const publicIpLib = await import("public-ip");
+                //@ts-ignore
+                const publicIpLib = await eval("import(\"public-ip\")");
                 address = await publicIpLib.publicIpv4();
             }
             if(address==null) throw new Error("Cannot get IP address of the node!");
