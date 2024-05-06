@@ -67,6 +67,7 @@ export class SolanaIntermediaryRunner<T extends SwapData> extends EventEmitter {
     LND: AuthenticatedLnd;
 
     initState: SolanaInitState = SolanaInitState.STARTING;
+    sslAutoUrl: string;
 
     setState(newState: SolanaInitState) {
         const oldState = this.initState;
@@ -407,7 +408,9 @@ export class SolanaIntermediaryRunner<T extends SwapData> extends EventEmitter {
 
             await acme.init(renewCallback);
 
-            await fs.writeFile(this.directory+"/url.txt", "https://"+dns+":"+listenPort);
+            const url = "https://"+dns+":"+listenPort;
+            this.sslAutoUrl = url;
+            await fs.writeFile(this.directory+"/url.txt", url);
         }
         if(IntermediaryConfig.SSL!=null) {
             console.log("[Main]: Using existing SSL certs");

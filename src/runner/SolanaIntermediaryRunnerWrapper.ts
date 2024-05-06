@@ -17,6 +17,7 @@ import {fromDecimal, toDecimal} from "../Utils";
 import {getP2wpkhPubkey} from "../chains/solana/signer/AnchorSigner";
 import * as bitcoin from "bitcoinjs-lib";
 import {BITCOIN_NETWORK} from "../constants/Constants";
+import {IntermediaryConfig} from "../IntermediaryConfig";
 
 export class SolanaIntermediaryRunnerWrapper<T extends SwapData> extends SolanaIntermediaryRunner<T> {
 
@@ -541,6 +542,18 @@ export class SolanaIntermediaryRunnerWrapper<T extends SwapData> extends SolanaI
                         }
                         if(reply.length===1) reply.push("   No loaded plugins");
                         return reply.join("\n");
+                    }
+                }
+            ),
+            createCommand(
+                "geturl",
+                "Returns the URL of the node (only works when SSL_AUTO mode is used)",
+                {
+                    args: {},
+                    parser: async (args, sendLine) => {
+                        if(IntermediaryConfig.SSL_AUTO==null) throw new Error("Node is not using SSL_AUTO mode for certificate provision!");
+                        if(this.sslAutoUrl==null) throw new Error("Url not generated yet (node is still syncing?)");
+                        return "Node url: "+this.sslAutoUrl;
                     }
                 }
             )
