@@ -39,7 +39,6 @@
     "http2-express-bridge": "1.0.7",
     "lightning": "10.3.1",
     "ln-service": "57.3.0",
-    "mail-notifier": "file:../../Plugins/mail-notifier",
     "minimist": "1.2.8",
     "public-ip": "6.0.2",
     "tiny-secp256k1": "2.2.3",
