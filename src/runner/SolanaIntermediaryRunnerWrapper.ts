@@ -68,7 +68,7 @@ export class SolanaIntermediaryRunnerWrapper<T extends SwapData> extends SolanaI
                         const lndRpcStatus = await this.getLNDWalletStatus(getUnauthenticatedLndGrpc());
                         reply.push("LND gRPC status:");
                         reply.push("    Wallet status: "+lndRpcStatus);
-                        if(btcRpcStatus!="offline") {
+                        if(lndRpcStatus!="offline") {
                             const resp = await lncli.getWalletInfo({
                                 lnd: this.LND
                             });
@@ -139,19 +139,28 @@ export class SolanaIntermediaryRunnerWrapper<T extends SwapData> extends SolanaI
                         }
 
                         reply.push("Bitcoin balances (trading):");
-                        const {utxos} = await lncli.getUtxos({lnd: this.LND, min_confirmations: 0});
-                        let unconfirmed = new BN(0);
-                        let confirmed = new BN(0);
-                        utxos.forEach(utxo => {
-                            if(utxo.confirmation_count===0) {
-                                unconfirmed = unconfirmed.add(new BN(utxo.tokens));
-                            } else {
-                                confirmed = confirmed.add(new BN(utxo.tokens));
-                            }
-                        });
-                        reply.push("   BTC: "+toDecimal(confirmed, 8)+" (+"+toDecimal(unconfirmed, 8)+")");
-                        const channelBalance = await lncli.getChannelBalance({lnd: this.LND});
-                        reply.push("   BTC-LN: "+toDecimal(new BN(channelBalance.channel_balance), 8)+" (+"+toDecimal(new BN(channelBalance.pending_balance), 8)+")");
+                        const utxoResponse = await lncli.getUtxos({lnd: this.LND, min_confirmations: 0}).catch(e => console.error(e));
+                        if(utxoResponse==null) {
+                            reply.push("   BTC: unknown"+" (waiting for bitcoin node sync)");
+                        } else {
+                            let unconfirmed = new BN(0);
+                            let confirmed = new BN(0);
+                            utxoResponse.utxos.forEach(utxo => {
+                                if(utxo.confirmation_count===0) {
+                                    unconfirmed = unconfirmed.add(new BN(utxo.tokens));
+                                } else {
+                                    confirmed = confirmed.add(new BN(utxo.tokens));
+                                }
+                            });
+                            reply.push("   BTC: "+toDecimal(confirmed, 8)+" (+"+toDecimal(unconfirmed, 8)+")");
+                        }
+
+                        const channelBalance = await lncli.getChannelBalance({lnd: this.LND}).catch(e => console.error(e));
+                        if(channelBalance==null) {
+                            reply.push("   BTC-LN: unknown (waiting for bitcoin node sync)");
+                        } else {
+                            reply.push("   BTC-LN: "+toDecimal(new BN(channelBalance.channel_balance), 8)+" (+"+toDecimal(new BN(channelBalance.pending_balance), 8)+")");
+                        }
 
                         return reply.join("\n");
                     }
@@ -177,6 +186,7 @@ export class SolanaIntermediaryRunnerWrapper<T extends SwapData> extends SolanaI
                         }
                     },
                     parser: async (args, sendLine) => {
+                        if(this.LND==null) throw new Error("LND node not ready yet! Monitor the status with the 'status' command");
                         sendLine("Connecting to remote peer...");
                         await lncli.addPeer({
                             lnd: this.LND,
@@ -212,6 +222,7 @@ export class SolanaIntermediaryRunnerWrapper<T extends SwapData> extends SolanaI
                         }
                     },
                     parser: async (args, sendLine) => {
+                        if(this.LND==null) throw new Error("LND node not ready yet! Monitor the status with the 'status' command");
                         const amtBN = args.amount==null ? null : fromDecimal(args.amount.toFixed(8), 8);
                         if(amtBN==null) throw new Error("Amount cannot be parsed");
                         const resp = await lncli.openChannel({
@@ -239,6 +250,7 @@ export class SolanaIntermediaryRunnerWrapper<T extends SwapData> extends SolanaI
                         }
                     },
                     parser: async (args, sendLine) => {
+                        if(this.LND==null) throw new Error("LND node not ready yet! Monitor the status with the 'status' command");
                         const resp = await lncli.closeChannel({
                             lnd: this.LND,
                             is_force_close: false,
@@ -260,6 +272,7 @@ export class SolanaIntermediaryRunnerWrapper<T extends SwapData> extends SolanaI
                         }
                     },
                     parser: async (args, sendLine) => {
+                        if(this.LND==null) throw new Error("LND node not ready yet! Monitor the status with the 'status' command");
                         const resp = await lncli.closeChannel({
                             lnd: this.LND,
                             is_force_close: true,
@@ -275,6 +288,7 @@ export class SolanaIntermediaryRunnerWrapper<T extends SwapData> extends SolanaI
                 {
                     args: {},
                     parser: async (args, sendLine) => {
+                        if(this.LND==null) throw new Error("LND node not ready yet! Monitor the status with the 'status' command");
                         const {channels} = await lncli.getChannels({
                             lnd: this.LND
                         });
@@ -332,6 +346,7 @@ export class SolanaIntermediaryRunnerWrapper<T extends SwapData> extends SolanaI
                     },
                     parser: async (args, sendLine) => {
                         if(args.asset==="BTC") {
+                            if(this.LND==null) throw new Error("LND node not ready yet! Monitor the status with the 'status' command");
                             const amtBN = fromDecimal(args.amount.toFixed(8), 8);
 
                             const resp = await lncli.sendToChainAddress({
@@ -368,6 +383,7 @@ export class SolanaIntermediaryRunnerWrapper<T extends SwapData> extends SolanaI
                         }
                     },
                     parser: async (args, sendLine) => {
+                        if(this.LND==null) throw new Error("LND node not ready yet! Monitor the status with the 'status' command");
                         sendLine("Sending lightning tx, waiting for confirmation...");
                         const resp = await lncli.pay({
                             lnd: this.LND,
@@ -392,6 +408,7 @@ export class SolanaIntermediaryRunnerWrapper<T extends SwapData> extends SolanaI
                         }
                     },
                     parser: async (args, sendLine) => {
+                        if(this.LND==null) throw new Error("LND node not ready yet! Monitor the status with the 'status' command");
                         const amtBN = args.amount==null ? null : fromDecimal(args.amount.toFixed(8), 8);
                         const resp = await lncli.createInvoice({
                             lnd: this.LND,
