@@ -61,8 +61,8 @@ export class SolanaIntermediaryRunner<T extends SwapData> extends EventEmitter {
     readonly chainEvents: ChainEvents<T>;
     readonly signer: (AnchorProvider & {signer: Keypair});
 
-    readonly btcFeeEstimator: IBtcFeeEstimator;
     readonly swapHandlers: SwapHandler<any, T>[] = [];
+    btcFeeEstimator: IBtcFeeEstimator;
     infoHandler: InfoHandler<T>;
     LND: AuthenticatedLnd;
 
@@ -99,13 +99,6 @@ export class SolanaIntermediaryRunner<T extends SwapData> extends EventEmitter {
         this.btcRelay = btcRelay;
         this.swapContract = swapContract;
         this.chainEvents = chainEvents;
-
-        this.btcFeeEstimator = new OneDollarFeeEstimator(
-            IntermediaryConfig.BITCOIND.HOST,
-            IntermediaryConfig.BITCOIND.PORT,
-            IntermediaryConfig.BITCOIND.RPC_USERNAME,
-            IntermediaryConfig.BITCOIND.RPC_PASSWORD
-        );
     }
 
     /**
@@ -253,6 +246,14 @@ export class SolanaIntermediaryRunner<T extends SwapData> extends EventEmitter {
     }
 
     registerSwapHandlers(): void {
+
+        this.btcFeeEstimator = new OneDollarFeeEstimator(
+            IntermediaryConfig.BITCOIND.HOST,
+            IntermediaryConfig.BITCOIND.PORT,
+            IntermediaryConfig.BITCOIND.RPC_USERNAME,
+            IntermediaryConfig.BITCOIND.RPC_PASSWORD
+        );
+
         this.swapHandlers.push(
             new ToBtcAbs<T>(new IntermediaryStorageManager(this.directory+"/tobtc"), "/tobtc", this.swapContract, this.chainEvents, this.allowedTokens, this.LND, this.prices, this.bitcoinRpc, {
                 authorizationTimeout: AUTHORIZATION_TIMEOUT,
