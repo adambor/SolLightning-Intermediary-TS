@@ -62,6 +62,14 @@ ASSETS:
     address: "So11111111111111111111111111111111111111112"
     decimals: 9
 
+CLI:
+  ADDRESS: "127.0.0.1"
+  PORT: 40221
+
+REST:
+  ADDRESS: "0.0.0.0"
+  PORT: 4000
+
 #SSL:
 #  CERT_FILE: "./server.cert"
 #  KEY_FILE: "./server.key"
@@ -69,3 +77,4 @@ ASSETS:
 #SSL_AUTO:
 #  IP_ADDRESS_FILE: "./address.txt"
 #  HTTP_LISTEN_PORT: 80
+#  DNS_PROXY: "nip.io"

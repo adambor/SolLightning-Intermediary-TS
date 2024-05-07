@@ -585,7 +585,7 @@ export class SolanaIntermediaryRunnerWrapper<T extends SwapData> extends SolanaI
                     }
                 }
             )
-        ], process.env.CLI_LISTEN_ADDRESS, parseInt(process.env.CLI_LISTEN_PORT), "Welcome to atomiq intermediary (LP node) CLI!");
+        ], IntermediaryConfig.CLI.ADDRESS, IntermediaryConfig.CLI.PORT, "Welcome to atomiq intermediary (LP node) CLI!");
     }
 
     async init() {

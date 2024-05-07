@@ -378,10 +378,10 @@ export class SolanaIntermediaryRunner<T extends SwapData> extends EventEmitter {
             }
         }
 
-        const listenPort = process.env.REST_PORT==null ? 4000 : parseInt(process.env.REST_PORT);
+        const listenPort = IntermediaryConfig.REST.PORT;
 
         if(IntermediaryConfig.SSL_AUTO!=null) {
-            console.log("[Main]: Using automatic SSL cert provision through Let's Encrypt & dns proxy: "+process.env.DNS_PROXY);
+            console.log("[Main]: Using automatic SSL cert provision through Let's Encrypt & dns proxy: "+IntermediaryConfig.SSL_AUTO.DNS_PROXY);
             useSsl = true;
             let address: string;
             if(IntermediaryConfig.SSL_AUTO.IP_ADDRESS_FILE!=null) {
@@ -405,7 +405,7 @@ export class SolanaIntermediaryRunner<T extends SwapData> extends EventEmitter {
             } catch (e) {}
 
             const ipWithDashes = address.replace(new RegExp("\\.", 'g'), "-");
-            const dns = ipWithDashes+"."+process.env.DNS_PROXY;
+            const dns = ipWithDashes+"."+IntermediaryConfig.SSL_AUTO.DNS_PROXY;
             console.log("[Main]: Domain name: "+dns);
             const acme = new LetsEncryptACME(dns, dir+"/key.pem", dir+"/cert.pem", IntermediaryConfig.SSL_AUTO.HTTP_LISTEN_PORT);
 
@@ -473,7 +473,7 @@ export class SolanaIntermediaryRunner<T extends SwapData> extends EventEmitter {
 
         await new Promise<void>((resolve, reject) => {
             server.on("error", e => reject(e));
-            server.listen(listenPort, () => resolve());
+            server.listen(listenPort, IntermediaryConfig.REST.ADDRESS, () => resolve());
         });
 
         console.log("[Main]: Rest server listening on port: "+listenPort+" ssl: "+useSsl);

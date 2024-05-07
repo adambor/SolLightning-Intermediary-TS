@@ -96,6 +96,16 @@ const IntermediaryConfigTemplate = {
         ["USDC", "USDT", "WBTC", "WSOL"]
     ),
 
+    CLI: objectParser({
+        ADDRESS: stringParser(),
+        PORT: numberParser(false, 0, 65535)
+    }),
+
+    REST: objectParser({
+        ADDRESS: stringParser(),
+        PORT: numberParser(false, 0, 65535)
+    }),
+
     SSL: objectParser({
         CERT_FILE: stringParser(),
         KEY_FILE: stringParser()
@@ -103,7 +113,8 @@ const IntermediaryConfigTemplate = {
 
     SSL_AUTO: objectParser({
         IP_ADDRESS_FILE: stringParser(null, null, true),
-        HTTP_LISTEN_PORT: numberParser(false, 0, 65535)
+        HTTP_LISTEN_PORT: numberParser(false, 0, 65535),
+        DNS_PROXY: stringParser()
     }, null, true),
 
     PLUGINS: dictionaryParser(
