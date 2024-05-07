@@ -1,5 +1,5 @@
 import {getEnabledPlugins} from "../plugins";
-import {getAuthenticatedLndGrpc, getUnauthenticatedLndGrpc} from "../btc/LND";
+import {getAuthenticatedLndGrpc, getUnauthenticatedLndGrpc, LND_MNEMONIC_FILE} from "../btc/LND";
 import {
     AUTHORIZATION_TIMEOUT,
     BITCOIN_BLOCKTIME, BITCOIN_NETWORK, CHAIN_SEND_SAFETY_FACTOR,
@@ -152,13 +152,13 @@ export class SolanaIntermediaryRunner<T extends SwapData> extends EventEmitter {
         if(walletStatus==="waiting" || walletStatus==="starting" || walletStatus==="offline") return false;
         if(walletStatus==="absent") {
             //Create a new wallet based on the the seed in LND mnemonic file config
-            if(IntermediaryConfig.LND.MNEMONIC_FILE==null || IntermediaryConfig.LND.WALLET_PASSWORD_FILE==null) {
+            if(LND_MNEMONIC_FILE==null || IntermediaryConfig.LND.WALLET_PASSWORD_FILE==null) {
                 throw new Error("Error initializing LND, no mnemonic and/or wallet password provided!");
             }
             let mnemonic: string;
             let password: string;
             try {
-                const result = await fs.readFile(IntermediaryConfig.LND.MNEMONIC_FILE);
+                const result = await fs.readFile(LND_MNEMONIC_FILE);
                 mnemonic = result.toString();
                 const resultPass = await fs.readFile(IntermediaryConfig.LND.WALLET_PASSWORD_FILE);
                 password = resultPass.toString();

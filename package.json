@@ -23,6 +23,7 @@
   "dependencies": {
     "@types/bn.js": "^5.1.5",
     "acme-client": "5.3.0",
+    "aezeed": "0.0.5",
     "atomiq-archiver": "1.0.2",
     "bip32": "4.0.0",
     "bip39": "3.1.0",

@@ -14,7 +14,7 @@ import {Keypair, PublicKey} from "@solana/web3.js";
 import {getUnauthenticatedLndGrpc} from "../btc/LND";
 import * as lncli from "ln-service";
 import {fromDecimal, toDecimal} from "../Utils";
-import {getP2wpkhPubkey} from "../chains/solana/signer/AnchorSigner";
+import {getP2wpkhPubkey} from "../btc/LND";
 import * as bitcoin from "bitcoinjs-lib";
 import {BITCOIN_NETWORK} from "../constants/Constants";
 import {IntermediaryConfig} from "../IntermediaryConfig";

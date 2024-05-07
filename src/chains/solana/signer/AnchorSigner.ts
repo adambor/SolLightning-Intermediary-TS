@@ -5,11 +5,6 @@ import { derivePath } from 'ed25519-hd-key';
 import * as fs from "fs";
 import {IntermediaryConfig} from "../../../IntermediaryConfig";
 
-import * as ecc from "tiny-secp256k1";
-import {BIP32Factory} from "bip32";
-
-const bip32 = BIP32Factory(ecc);
-
 const mnemonicFile = IntermediaryConfig.SOLANA.MNEMONIC_FILE;
 const privKey = IntermediaryConfig.SOLANA.PRIVKEY;
 
@@ -34,12 +29,6 @@ if(mnemonicFile!=null) {
     const path44Acc1 = "m/44'/501'/0'/0'";
     const derivedPath = derivePath(path44Acc1, seed.toString("hex"));
     _signer = Keypair.fromSeed(derivedPath.key);
-}
-
-export function getP2wpkhPubkey(): Buffer {
-    if(seed==null) return null;
-    const node = bip32.fromSeed(seed);
-    return node.derivePath("m/84'/0'/0'/0/0").publicKey;
 }
 
 const connection = new Connection(IntermediaryConfig.SOLANA.RPC_URL, "processed");
