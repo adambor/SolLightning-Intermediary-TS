@@ -77,7 +77,7 @@ const IntermediaryConfigTemplate = {
 
         ALLOW_NON_PROBABLE_SWAPS: booleanParser(),
         ALLOW_LN_SHORT_EXPIRY: booleanParser()
-    }),
+    }, null, true),
 
     ONCHAIN: objectParser({
         BASE_FEE: decimalToBNParser(8, 0),
@@ -86,7 +86,7 @@ const IntermediaryConfigTemplate = {
         MAX: decimalToBNParser(8, 0),
 
         NETWORK_FEE_ADD_PERCENTAGE: percentageToPpmParser(0)
-    }),
+    }, null, true),
 
     ASSETS: dictionaryParserWithKeys(
         objectParser({

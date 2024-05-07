@@ -4,7 +4,7 @@ import {
     AUTHORIZATION_TIMEOUT,
     BITCOIN_BLOCKTIME, BITCOIN_NETWORK, CHAIN_SEND_SAFETY_FACTOR,
     GRACE_PERIOD,
-    MAX_SOL_SKEW, NETWORK_FEE_MULTIPLIER_PPM,
+    MAX_SOL_SKEW,
     SAFETY_FACTOR
 } from "../constants/Constants";
 import {IntermediaryConfig} from "../IntermediaryConfig";
@@ -255,97 +255,100 @@ export class SolanaIntermediaryRunner<T extends SwapData> extends EventEmitter {
             IntermediaryConfig.BITCOIND.RPC_PASSWORD
         );
 
-        this.swapHandlers.push(
-            new ToBtcAbs<T>(new IntermediaryStorageManager(this.directory+"/tobtc"), "/tobtc", this.swapContract, this.chainEvents, this.allowedTokens, this.LND, this.prices, this.bitcoinRpc, {
-                authorizationTimeout: AUTHORIZATION_TIMEOUT,
-                bitcoinBlocktime: BITCOIN_BLOCKTIME,
-                gracePeriod: GRACE_PERIOD,
-                baseFee: IntermediaryConfig.ONCHAIN.BASE_FEE,
-                feePPM: IntermediaryConfig.ONCHAIN.FEE_PERCENTAGE,
-                max: IntermediaryConfig.ONCHAIN.MAX,
-                min: IntermediaryConfig.ONCHAIN.MIN,
-                maxSkew: MAX_SOL_SKEW,
-                safetyFactor: SAFETY_FACTOR,
-                sendSafetyFactor: CHAIN_SEND_SAFETY_FACTOR,
+        if(IntermediaryConfig.ONCHAIN!=null) {
+            this.swapHandlers.push(
+                new ToBtcAbs<T>(new IntermediaryStorageManager(this.directory + "/tobtc"), "/tobtc", this.swapContract, this.chainEvents, this.allowedTokens, this.LND, this.prices, this.bitcoinRpc, {
+                    authorizationTimeout: AUTHORIZATION_TIMEOUT,
+                    bitcoinBlocktime: BITCOIN_BLOCKTIME,
+                    gracePeriod: GRACE_PERIOD,
+                    baseFee: IntermediaryConfig.ONCHAIN.BASE_FEE,
+                    feePPM: IntermediaryConfig.ONCHAIN.FEE_PERCENTAGE,
+                    max: IntermediaryConfig.ONCHAIN.MAX,
+                    min: IntermediaryConfig.ONCHAIN.MIN,
+                    maxSkew: MAX_SOL_SKEW,
+                    safetyFactor: SAFETY_FACTOR,
+                    sendSafetyFactor: CHAIN_SEND_SAFETY_FACTOR,
 
-                bitcoinNetwork: BITCOIN_NETWORK,
+                    bitcoinNetwork: BITCOIN_NETWORK,
 
-                minChainCltv: new BN(10),
+                    minChainCltv: new BN(10),
 
-                networkFeeMultiplierPPM: NETWORK_FEE_MULTIPLIER_PPM,
-                minConfirmations: 1,
-                maxConfirmations: 6,
-                maxConfTarget: 12,
-                minConfTarget: 1,
+                    networkFeeMultiplierPPM: new BN(1000000).add(IntermediaryConfig.ONCHAIN.NETWORK_FEE_ADD_PERCENTAGE),
+                    minConfirmations: 1,
+                    maxConfirmations: 6,
+                    maxConfTarget: 12,
+                    minConfTarget: 1,
 
-                txCheckInterval: 10*1000,
-                swapCheckInterval: 5*60*1000,
+                    txCheckInterval: 10 * 1000,
+                    swapCheckInterval: 5 * 60 * 1000,
 
-                feeEstimator: this.btcFeeEstimator
-            })
-        );
+                    feeEstimator: this.btcFeeEstimator
+                })
+            );
+            this.swapHandlers.push(
+                new FromBtcAbs<T>(new IntermediaryStorageManager(this.directory + "/frombtc"), "/frombtc", this.swapContract, this.chainEvents, this.allowedTokens, this.LND, this.prices, {
+                    authorizationTimeout: AUTHORIZATION_TIMEOUT,
+                    bitcoinBlocktime: BITCOIN_BLOCKTIME,
+                    baseFee: IntermediaryConfig.ONCHAIN.BASE_FEE,
+                    feePPM: IntermediaryConfig.ONCHAIN.FEE_PERCENTAGE,
+                    max: IntermediaryConfig.ONCHAIN.MAX,
+                    min: IntermediaryConfig.ONCHAIN.MIN,
+                    maxSkew: MAX_SOL_SKEW,
+                    safetyFactor: SAFETY_FACTOR,
 
-        this.swapHandlers.push(
-            new FromBtcAbs<T>(new IntermediaryStorageManager(this.directory+"/frombtc"), "/frombtc", this.swapContract, this.chainEvents, this.allowedTokens, this.LND, this.prices, {
-                authorizationTimeout: AUTHORIZATION_TIMEOUT,
-                bitcoinBlocktime: BITCOIN_BLOCKTIME,
-                baseFee: IntermediaryConfig.ONCHAIN.BASE_FEE,
-                feePPM: IntermediaryConfig.ONCHAIN.FEE_PERCENTAGE,
-                max: IntermediaryConfig.ONCHAIN.MAX,
-                min: IntermediaryConfig.ONCHAIN.MIN,
-                maxSkew: MAX_SOL_SKEW,
-                safetyFactor: SAFETY_FACTOR,
+                    bitcoinNetwork: BITCOIN_NETWORK,
 
-                bitcoinNetwork: BITCOIN_NETWORK,
+                    confirmations: 2,
+                    swapCsvDelta: 72,
 
-                confirmations: 2,
-                swapCsvDelta: 72,
+                    refundInterval: 5 * 60 * 1000,
+                    securityDepositAPY: IntermediaryConfig.SOLANA.SECURITY_DEPOSIT_APY.toNumber() / 1000000
+                })
+            );
+        }
 
-                refundInterval: 5*60*1000,
-                securityDepositAPY: IntermediaryConfig.SOLANA.SECURITY_DEPOSIT_APY.toNumber()/1000000
-            })
-        );
+        if(IntermediaryConfig.LN!=null) {
+            this.swapHandlers.push(
+                new ToBtcLnAbs<T>(new IntermediaryStorageManager(this.directory+"/tobtcln"), "/tobtcln", this.swapContract, this.chainEvents, this.allowedTokens, this.LND, this.prices, {
+                    authorizationTimeout: AUTHORIZATION_TIMEOUT,
+                    bitcoinBlocktime: BITCOIN_BLOCKTIME,
+                    gracePeriod: GRACE_PERIOD,
+                    baseFee: IntermediaryConfig.LN.BASE_FEE,
+                    feePPM: IntermediaryConfig.LN.FEE_PERCENTAGE,
+                    max: IntermediaryConfig.LN.MAX,
+                    min: IntermediaryConfig.LN.MIN,
+                    maxSkew: MAX_SOL_SKEW,
+                    safetyFactor: SAFETY_FACTOR,
 
-        this.swapHandlers.push(
-            new ToBtcLnAbs<T>(new IntermediaryStorageManager(this.directory+"/tobtcln"), "/tobtcln", this.swapContract, this.chainEvents, this.allowedTokens, this.LND, this.prices, {
-                authorizationTimeout: AUTHORIZATION_TIMEOUT,
-                bitcoinBlocktime: BITCOIN_BLOCKTIME,
-                gracePeriod: GRACE_PERIOD,
-                baseFee: IntermediaryConfig.LN.BASE_FEE,
-                feePPM: IntermediaryConfig.LN.FEE_PERCENTAGE,
-                max: IntermediaryConfig.LN.MAX,
-                min: IntermediaryConfig.LN.MIN,
-                maxSkew: MAX_SOL_SKEW,
-                safetyFactor: SAFETY_FACTOR,
+                    routingFeeMultiplier: new BN(2),
 
-                routingFeeMultiplier: new BN(2),
+                    minSendCltv: new BN(10),
 
-                minSendCltv: new BN(10),
+                    swapCheckInterval: 5*60*1000,
 
-                swapCheckInterval: 5*60*1000,
+                    allowShortExpiry: IntermediaryConfig.LN.ALLOW_LN_SHORT_EXPIRY,
+                    allowProbeFailedSwaps: IntermediaryConfig.LN.ALLOW_NON_PROBABLE_SWAPS
+                })
+            );
+            this.swapHandlers.push(
+                new FromBtcLnAbs<T>(new IntermediaryStorageManager(this.directory+"/frombtcln"), "/frombtcln", this.swapContract, this.chainEvents, this.allowedTokens, this.LND, this.prices, {
+                    authorizationTimeout: AUTHORIZATION_TIMEOUT,
+                    bitcoinBlocktime: BITCOIN_BLOCKTIME,
+                    gracePeriod: GRACE_PERIOD,
+                    baseFee: IntermediaryConfig.LN.BASE_FEE,
+                    feePPM: IntermediaryConfig.LN.FEE_PERCENTAGE,
+                    max: IntermediaryConfig.LN.MAX,
+                    min: IntermediaryConfig.LN.MIN,
+                    maxSkew: MAX_SOL_SKEW,
+                    safetyFactor: SAFETY_FACTOR,
 
-                allowShortExpiry: IntermediaryConfig.LN.ALLOW_LN_SHORT_EXPIRY,
-                allowProbeFailedSwaps: IntermediaryConfig.LN.ALLOW_NON_PROBABLE_SWAPS
-            })
-        );
-        this.swapHandlers.push(
-            new FromBtcLnAbs<T>(new IntermediaryStorageManager(this.directory+"/frombtcln"), "/frombtcln", this.swapContract, this.chainEvents, this.allowedTokens, this.LND, this.prices, {
-                authorizationTimeout: AUTHORIZATION_TIMEOUT,
-                bitcoinBlocktime: BITCOIN_BLOCKTIME,
-                gracePeriod: GRACE_PERIOD,
-                baseFee: IntermediaryConfig.LN.BASE_FEE,
-                feePPM: IntermediaryConfig.LN.FEE_PERCENTAGE,
-                max: IntermediaryConfig.LN.MAX,
-                min: IntermediaryConfig.LN.MIN,
-                maxSkew: MAX_SOL_SKEW,
-                safetyFactor: SAFETY_FACTOR,
+                    minCltv: new BN(20),
 
-                minCltv: new BN(20),
-
-                refundInterval: 1*60*1000,
-                securityDepositAPY: IntermediaryConfig.SOLANA.SECURITY_DEPOSIT_APY.toNumber()/1000000
-            })
-        );
+                    refundInterval: 1*60*1000,
+                    securityDepositAPY: IntermediaryConfig.SOLANA.SECURITY_DEPOSIT_APY.toNumber()/1000000
+                })
+            );
+        }
     }
 
     initSwapHandlers(): Promise<void[]> {
@@ -406,11 +409,11 @@ export class SolanaIntermediaryRunner<T extends SwapData> extends EventEmitter {
             console.log("[Main]: Domain name: "+dns);
             const acme = new LetsEncryptACME(dns, dir+"/key.pem", dir+"/cert.pem", IntermediaryConfig.SSL_AUTO.HTTP_LISTEN_PORT);
 
-            await acme.init(renewCallback);
-
             const url = "https://"+dns+":"+listenPort;
             this.sslAutoUrl = url;
             await fs.writeFile(this.directory+"/url.txt", url);
+
+            await acme.init(renewCallback);
         }
         if(IntermediaryConfig.SSL!=null) {
             console.log("[Main]: Using existing SSL certs");

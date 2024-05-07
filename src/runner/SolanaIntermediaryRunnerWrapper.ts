@@ -18,10 +18,12 @@ import {getP2wpkhPubkey} from "../chains/solana/signer/AnchorSigner";
 import * as bitcoin from "bitcoinjs-lib";
 import {BITCOIN_NETWORK} from "../constants/Constants";
 import {IntermediaryConfig} from "../IntermediaryConfig";
+import {Registry} from "../Registry";
 
 export class SolanaIntermediaryRunnerWrapper<T extends SwapData> extends SolanaIntermediaryRunner<T> {
 
     cmdHandler: CommandHandler;
+    lpRegistry: Registry;
 
     constructor(
         directory: string,
@@ -39,6 +41,7 @@ export class SolanaIntermediaryRunnerWrapper<T extends SwapData> extends SolanaI
         chainEvents: ChainEvents<T>
     ) {
         super(directory, signer, tokens, prices, bitcoinRpc, btcRelay, swapContract, chainEvents);
+        this.lpRegistry = new Registry(directory+"/lpRegistration.txt");
         this.cmdHandler = new CommandHandler([
             createCommand(
                 "status",
@@ -554,6 +557,31 @@ export class SolanaIntermediaryRunnerWrapper<T extends SwapData> extends SolanaI
                         if(IntermediaryConfig.SSL_AUTO==null) throw new Error("Node is not using SSL_AUTO mode for certificate provision!");
                         if(this.sslAutoUrl==null) throw new Error("Url not generated yet (node is still syncing?)");
                         return "Node url: "+this.sslAutoUrl;
+                    }
+                }
+            ),
+            createCommand(
+                "register",
+                "Registers the URL of the node to the public LP node registry (only works when SSL_AUTO mode is used)",
+                {
+                    args: {
+                        mail: {
+                            base: true,
+                            description: "E-mail to use for the LP registration, if there is something wrong with your node we will contact you here (can be empty - \"\" to opt-out)!",
+                            parser: cmdStringParser()
+                        }
+                    },
+                    parser: async (args, sendLine) => {
+                        if(IntermediaryConfig.SSL_AUTO==null) throw new Error("Node is not using SSL_AUTO mode for certificate provision!");
+                        if(this.sslAutoUrl==null) throw new Error("Url not generated yet (node is still syncing?)");
+                        const isRegistering = await this.lpRegistry.isRegistering();
+                        if(isRegistering) {
+                            const {status, url} = await this.lpRegistry.getRegistrationStatus();
+                            return "LP registration status: "+status+"\nGithub PR: "+url;
+                        } else {
+                            const url = await this.lpRegistry.register(IntermediaryConfig.BITCOIND.NETWORK==="testnet", this.sslAutoUrl, args.mail==="" ? null : args.mail);
+                            return "LP registration request created: "+url;
+                        }
                     }
                 }
             )
