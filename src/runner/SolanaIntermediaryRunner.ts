@@ -94,7 +94,7 @@ export class SolanaIntermediaryRunner<T extends SwapData> extends EventEmitter {
         this.directory = directory;
         this.signer = signer;
         this.tokens = tokens;
-        this.allowedTokens = Object.keys(IntermediaryConfig.ASSETS).map<string>(key => IntermediaryConfig.ASSETS[key].toString());
+        this.allowedTokens = Object.keys(tokens).map<string>(key => tokens[key].address.toString());
         this.prices = prices;
         this.bitcoinRpc = bitcoinRpc;
         this.btcRelay = btcRelay;
