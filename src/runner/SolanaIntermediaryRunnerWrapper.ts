@@ -73,15 +73,19 @@ export class SolanaIntermediaryRunnerWrapper<T extends SwapData> extends SolanaI
                         reply.push("LND gRPC status:");
                         reply.push("    Wallet status: "+lndRpcStatus);
                         if(lndRpcStatus!="offline") {
-                            const resp = await lncli.getWalletInfo({
-                                lnd: this.LND
-                            });
-                            reply.push("    Synced to chain: "+resp.is_synced_to_chain);
-                            reply.push("    Blockheight: "+resp.current_block_height);
-                            reply.push("    Connected peers: "+resp.peers_count);
-                            reply.push("    Channels active: "+resp.active_channels_count);
-                            reply.push("    Channels pending: "+resp.pending_channels_count);
-                            reply.push("    Node pubkey: "+resp.public_key);
+                            try {
+                                const resp = await lncli.getWalletInfo({
+                                    lnd: this.LND
+                                });
+                                reply.push("    Synced to chain: "+resp.is_synced_to_chain);
+                                reply.push("    Blockheight: "+resp.current_block_height);
+                                reply.push("    Connected peers: "+resp.peers_count);
+                                reply.push("    Channels active: "+resp.active_channels_count);
+                                reply.push("    Channels pending: "+resp.pending_channels_count);
+                                reply.push("    Node pubkey: "+resp.public_key);
+                            } catch (e) {
+                                console.error(e);
+                            }
                         }
 
                         const balance = await this.swapContract.getBalance(this.swapContract.getNativeCurrencyAddress(), false);
