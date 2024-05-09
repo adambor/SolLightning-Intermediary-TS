@@ -223,6 +223,11 @@ export class SolanaIntermediaryRunnerWrapper<T extends SwapData> extends SolanaI
                                     address: arr[1]
                                 };
                             }
+                        },
+                        feeRate: {
+                            base: false,
+                            description: "Fee rate for the opening transaction (sats/vB)",
+                            parser: cmdNumberParser(false, 1, null, true)
                         }
                     },
                     parser: async (args, sendLine) => {
@@ -236,7 +241,8 @@ export class SolanaIntermediaryRunnerWrapper<T extends SwapData> extends SolanaI
                             partner_public_key: args.node.pubkey,
                             partner_socket: args.node.address,
                             fee_rate: 1000,
-                            base_fee_mtokens: "1000"
+                            base_fee_mtokens: "1000",
+                            chain_fee_tokens_per_vbyte: args.feeRate
                         });
                         return "Lightning channel funded, wait for TX confirmations! txId: "+resp.transaction_id;
                     }
@@ -251,6 +257,11 @@ export class SolanaIntermediaryRunnerWrapper<T extends SwapData> extends SolanaI
                             base: true,
                             description: "Channel ID to close cooperatively",
                             parser: cmdStringParser()
+                        },
+                        feeRate: {
+                            base: false,
+                            description: "Fee rate for the opening transaction (sats/vB)",
+                            parser: cmdNumberParser(false, 1, null, true)
                         }
                     },
                     parser: async (args, sendLine) => {
@@ -258,7 +269,8 @@ export class SolanaIntermediaryRunnerWrapper<T extends SwapData> extends SolanaI
                         const resp = await lncli.closeChannel({
                             lnd: this.LND,
                             is_force_close: false,
-                            id: args.channelId
+                            id: args.channelId,
+                            tokens_per_vbyte: args.feeRate
                         });
                         return "Lightning channel closed, txId: "+resp.transaction_id;
                     }
@@ -273,6 +285,11 @@ export class SolanaIntermediaryRunnerWrapper<T extends SwapData> extends SolanaI
                             base: true,
                             description: "Channel ID to force close",
                             parser: cmdStringParser()
+                        },
+                        feeRate: {
+                            base: false,
+                            description: "Fee rate for the opening transaction (sats/vB)",
+                            parser: cmdNumberParser(false, 1, null, true)
                         }
                     },
                     parser: async (args, sendLine) => {
@@ -280,7 +297,8 @@ export class SolanaIntermediaryRunnerWrapper<T extends SwapData> extends SolanaI
                         const resp = await lncli.closeChannel({
                             lnd: this.LND,
                             is_force_close: true,
-                            id: args.channelId
+                            id: args.channelId,
+                            tokens_per_vbyte: args.feeRate
                         });
                         return "Lightning channel closed, txId: "+resp.transaction_id;
                     }
@@ -346,6 +364,11 @@ export class SolanaIntermediaryRunnerWrapper<T extends SwapData> extends SolanaI
                             base: true,
                             description: "Amount of the currency to send",
                             parser: cmdNumberParser(true, 0)
+                        },
+                        feeRate: {
+                            base: false,
+                            description: "Fee rate: sats/vB for BTC",
+                            parser: cmdNumberParser(false, 1, null, true)
                         }
                     },
                     parser: async (args, sendLine) => {
@@ -357,7 +380,8 @@ export class SolanaIntermediaryRunnerWrapper<T extends SwapData> extends SolanaI
                                 lnd: this.LND,
                                 tokens: amtBN.toNumber(),
                                 address: args.address,
-                                utxo_confirmations: 0
+                                utxo_confirmations: 0,
+                                fee_tokens_per_vbyte: args.feeRate
                             });
 
                             return "Transaction sent, txId: "+resp.id;
