@@ -21,6 +21,7 @@ import {BitcoindRpc} from "btcrelay-bitcoind";
 import {SolanaChainEvents} from "crosslightning-solana/dist/solana/events/SolanaChainEvents";
 import {IntermediaryConfig} from "./IntermediaryConfig";
 import {SolanaIntermediaryRunnerWrapper} from "./runner/SolanaIntermediaryRunnerWrapper";
+import {X509Certificate} from "node:crypto";
 
 async function main() {
     const directory = process.env.STORAGE_DIR;

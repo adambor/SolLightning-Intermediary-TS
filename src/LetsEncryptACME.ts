@@ -1,6 +1,7 @@
 import {Client, directory, crypto} from "acme-client";
 import * as fs from "fs/promises";
 import {createServer, Server} from "node:http";
+import {X509Certificate} from "node:crypto";
 
 export class LetsEncryptACME {
 
@@ -8,17 +9,17 @@ export class LetsEncryptACME {
     readonly keyFile: string;
     readonly certFile: string;
     readonly listenPort: number;
-    readonly renewInterval: number;
+    readonly renewBuffer: number;
 
     renewCallback: (key: Buffer, cert: Buffer) => void;
     client: Client;
 
-    constructor(hostname: string, keyFile: string, certFile: string, listenPort: number = 80, renewInterval: number = 7*24*60*60*1000) {
+    constructor(hostname: string, keyFile: string, certFile: string, listenPort: number = 80, renewBuffer: number = 14*24*60*60*1000) {
         this.hostname = hostname;
         this.keyFile = keyFile;
         this.certFile = certFile;
         this.listenPort = listenPort;
-        this.renewInterval = renewInterval;
+        this.renewBuffer = renewBuffer;
     }
 
     async init(renewCallback: (key: Buffer, cert: Buffer) => void) {
@@ -47,12 +48,23 @@ export class LetsEncryptACME {
         setInterval(() => this.renewOrCreate().catch(e => {
             console.log("Certificate renewal error: ", e);
             console.error(e);
-        }), this.renewInterval);
+        }), 4*60*60*1000); //Check certificate expiry every 4 hours
     }
 
     async renewOrCreate() {
         console.log("[ACME]: Renew or create cert...");
+        const existingCert = await fs.readFile(this.certFile).catch(e => null);
         const existingKey = await fs.readFile(this.keyFile).catch(e => null);
+
+        if(existingKey!=null && existingCert!=null) {
+            const certificateData = new X509Certificate(existingCert);
+            const certificateExpiry = new Date(certificateData.validTo).getTime();
+            if(certificateExpiry-Date.now()>this.renewBuffer) {
+                console.log("[ACME]: Not renewing, old certificate still valid!");
+                return;
+            }
+        }
+
         if(existingKey==null) console.log("[ACME]: Creating new CSR key!");
 
         const [key, csr] = await crypto.createCsr({
