@@ -718,7 +718,7 @@ export class SolanaIntermediaryRunnerWrapper<T extends SwapData> extends SolanaI
                                 }
                             }
                         }
-                        return swapData.join("\n");
+                        return swapData.join("\n\n");
                     }
                 }
             )
