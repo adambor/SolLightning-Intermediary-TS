@@ -647,7 +647,7 @@ export class SolanaIntermediaryRunnerWrapper<T extends SwapData> extends SolanaI
                         quotes: {
                             base: false,
                             description: "Whether to also show issued quotes (not yet committed to swaps) - 0/1",
-                            parser: cmdNumberParser(false, 0, 1)
+                            parser: cmdNumberParser(false, 0, 1, true)
                         }
                     },
                     parser: async (args, sendLine) => {
