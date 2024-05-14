@@ -16,7 +16,15 @@ import {
     FromBtcLnAbs,
     IBtcFeeEstimator,
     InfoHandler,
-    IntermediaryStorageManager, ISwapPrice, OneDollarFeeEstimator, PluginManager, SwapHandler, ToBtcAbs, ToBtcLnAbs} from "crosslightning-intermediary";
+    IntermediaryStorageManager,
+    ISwapPrice,
+    OneDollarFeeEstimator,
+    PluginManager,
+    SwapHandler,
+    SwapHandlerSwap,
+    ToBtcAbs,
+    ToBtcLnAbs
+} from "crosslightning-intermediary";
 import {BitcoinRpc, BtcRelay, BtcSyncInfo, ChainEvents, SwapContract, SwapData} from "crosslightning-base";
 import http2Express from "http2-express-bridge";
 import * as express from "express";
@@ -61,7 +69,7 @@ export class SolanaIntermediaryRunner<T extends SwapData> extends EventEmitter {
     readonly chainEvents: ChainEvents<T>;
     readonly signer: (AnchorProvider & {signer: Keypair});
 
-    readonly swapHandlers: SwapHandler<any, T>[] = [];
+    readonly swapHandlers: SwapHandler<SwapHandlerSwap<T>, T>[] = [];
     btcFeeEstimator: IBtcFeeEstimator;
     infoHandler: InfoHandler<T>;
     LND: AuthenticatedLnd;

@@ -1,6 +1,18 @@
 import {BitcoinRpc, BtcRelay, ChainEvents, ChainSwapType, SwapContract, SwapData} from "crosslightning-base";
-import {ISwapPrice, PluginManager} from "crosslightning-intermediary";
-import {SolanaInitState, SolanaIntermediaryRunner} from "./SolanaIntermediaryRunner";
+import {
+    FromBtcLnSwapAbs,
+    FromBtcLnSwapState,
+    FromBtcSwapAbs,
+    FromBtcSwapState,
+    ISwapPrice,
+    PluginManager,
+    SwapHandlerType,
+    ToBtcLnSwapAbs,
+    ToBtcLnSwapState,
+    ToBtcSwapAbs,
+    ToBtcSwapState
+} from "crosslightning-intermediary";
+import {SolanaIntermediaryRunner} from "./SolanaIntermediaryRunner";
 import * as BN from "bn.js";
 import {
     cmdEnumParser,
@@ -11,19 +23,25 @@ import {
 } from "crosslightning-server-base";
 import {AnchorProvider} from "@coral-xyz/anchor";
 import {Keypair, PublicKey} from "@solana/web3.js";
-import {getUnauthenticatedLndGrpc} from "../btc/LND";
+import {getP2wpkhPubkey, getUnauthenticatedLndGrpc} from "../btc/LND";
 import * as lncli from "ln-service";
 import {fromDecimal, toDecimal} from "../Utils";
-import {getP2wpkhPubkey} from "../btc/LND";
 import * as bitcoin from "bitcoinjs-lib";
 import {BITCOIN_NETWORK} from "../constants/Constants";
 import {IntermediaryConfig} from "../IntermediaryConfig";
 import {Registry} from "../Registry";
+import * as bolt11 from "bolt11";
 
 export class SolanaIntermediaryRunnerWrapper<T extends SwapData> extends SolanaIntermediaryRunner<T> {
 
     cmdHandler: CommandHandler;
     lpRegistry: Registry;
+    addressesToTokens: {
+        [address: string]: {
+            ticker: string,
+            decimals: number
+        }
+    }
 
     constructor(
         directory: string,
@@ -42,6 +60,14 @@ export class SolanaIntermediaryRunnerWrapper<T extends SwapData> extends SolanaI
     ) {
         super(directory, signer, tokens, prices, bitcoinRpc, btcRelay, swapContract, chainEvents);
         this.lpRegistry = new Registry(directory+"/lpRegistration.txt");
+        this.addressesToTokens = {};
+        for(let ticker in this.tokens) {
+            const tokenData = this.tokens[ticker];
+            this.addressesToTokens[tokenData.address.toString()] = {
+                decimals: tokenData.decimals,
+                ticker
+            }
+        }
         this.cmdHandler = new CommandHandler([
             createCommand(
                 "status",
@@ -610,6 +636,89 @@ export class SolanaIntermediaryRunnerWrapper<T extends SwapData> extends SolanaI
                             const url = await this.lpRegistry.register(IntermediaryConfig.BITCOIND.NETWORK==="testnet", this.sslAutoUrl, args.mail==="" ? null : args.mail);
                             return "LP registration request created: "+url;
                         }
+                    }
+                }
+            ),
+            createCommand(
+                "listswaps",
+                "Lists all swaps in progress",
+                {
+                    args: {
+                        quotes: {
+                            base: false,
+                            description: "Whether to also show issued quotes (not yet committed to swaps) - 0/1",
+                            parser: cmdNumberParser(false, 0, 1)
+                        }
+                    },
+                    parser: async (args, sendLine) => {
+                        const swapData: string[] = [];
+                        for(let swapHandler of this.swapHandlers) {
+                            for(let _swap of await swapHandler.storageManager.query([])) {
+                                const tokenData = this.addressesToTokens[_swap.data.getToken().toString()];
+                                if(_swap.type===SwapHandlerType.TO_BTC) {
+                                    const swap = _swap as ToBtcSwapAbs<T>;
+                                    if(args.quotes!==1 && swap.state===ToBtcSwapState.SAVED) continue;
+                                    const lines = [
+                                        toDecimal(swap.data.getAmount(), tokenData.decimals)+" "+tokenData.ticker+" -> "+toDecimal(swap.amount, 8)+" BTC",
+                                        "Payment hash: "+_swap.data.getHash(),
+                                        "State: "+ToBtcSwapState[swap.state],
+                                        "Swap fee: "+toDecimal(swap.swapFee, 8)+" BTC",
+                                        "Network fee: "+toDecimal(swap.networkFee, 8)+" BTC",
+                                        "Address: "+swap.address
+                                    ];
+                                    if(swap.txId!=null) {
+                                        lines.push("Tx ID: "+swap.txId);
+                                        lines.push("Paid network fee: "+toDecimal(swap.realNetworkFee, 8)+" BTC");
+                                    }
+                                    swapData.push(lines.join("\n"));
+                                }
+                                if(_swap.type===SwapHandlerType.TO_BTCLN) {
+                                    const swap = _swap as ToBtcLnSwapAbs<T>;
+                                    if(args.quotes!==1 && swap.state===ToBtcLnSwapState.SAVED) continue;
+                                    const parsedPR = bolt11.decode(swap.pr);
+                                    const sats = new BN(parsedPR.millisatoshis).div(new BN(1000));
+                                    const lines = [
+                                        toDecimal(swap.data.getAmount(), tokenData.decimals)+" "+tokenData.ticker+" -> "+toDecimal(sats, 8)+" BTC-LN",
+                                        "Payment hash: "+_swap.data.getHash(),
+                                        "State: "+ToBtcLnSwapState[swap.state],
+                                        "Swap fee: "+toDecimal(swap.swapFee, 8)+" BTC-LN",
+                                        "Network fee: "+toDecimal(swap.maxFee, 8)+" BTC-LN",
+                                        "Invoice: "+swap.pr,
+                                    ];
+                                    if(swap.realRoutingFee!=null) {
+                                        lines.push("Paid network fee: "+toDecimal(swap.realRoutingFee, 8)+" BTC-LN");
+                                    }
+                                    swapData.push(lines.join("\n"));
+                                }
+                                if(_swap.type===SwapHandlerType.FROM_BTC) {
+                                    const swap = _swap as FromBtcSwapAbs<T>;
+                                    if(args.quotes!==1 && swap.state===FromBtcSwapState.CREATED) continue;
+                                    const lines = [
+                                        toDecimal(swap.amount, 8)+" BTC -> "+toDecimal(swap.data.getAmount(), tokenData.decimals)+" "+tokenData.ticker,
+                                        "Payment hash: "+_swap.data.getHash(),
+                                        "State: "+FromBtcSwapState[swap.state],
+                                        "Swap fee: "+toDecimal(swap.swapFee, 8)+" BTC",
+                                        "Receiving address: "+swap.address
+                                    ];
+                                    swapData.push(lines.join("\n"));
+                                }
+                                if(_swap.type===SwapHandlerType.FROM_BTCLN) {
+                                    const swap = _swap as FromBtcLnSwapAbs<T>;
+                                    if(args.quotes!==1 && swap.state===FromBtcLnSwapState.CREATED) continue;
+                                    const parsedPR = bolt11.decode(swap.pr);
+                                    const sats = new BN(parsedPR.millisatoshis).div(new BN(1000));
+                                    const lines = [
+                                        toDecimal(sats, 8)+" BTC-LN -> "+toDecimal(swap.data.getAmount(), tokenData.decimals)+" "+tokenData.ticker,
+                                        "Payment hash: "+_swap.data.getHash(),
+                                        "State: "+FromBtcLnSwapState[swap.state],
+                                        "Swap fee: "+toDecimal(swap.swapFee, 8)+" BTC-LN",
+                                        "Receiving invoice: "+swap.pr
+                                    ];
+                                    swapData.push(lines.join("\n"));
+                                }
+                            }
+                        }
+                        return swapData.join("\n");
                     }
                 }
             )
