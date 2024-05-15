@@ -89,7 +89,8 @@ export class SolanaIntermediaryRunner<T extends SwapData> extends EventEmitter {
         tokens: {
             [ticker: string]: {
                 address: PublicKey,
-                decimals: number
+                decimals: number,
+                pricing: string
             }
         },
         prices: ISwapPrice,

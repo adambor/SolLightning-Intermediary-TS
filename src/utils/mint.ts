@@ -7,20 +7,9 @@ import {PublicKey} from "@solana/web3.js";
 import {IntermediaryConfig} from "../IntermediaryConfig";
 
 async function mint(amount: number, acc: PublicKey, token: string): Promise<boolean> {
-    let useToken;
-    switch (token) {
-        case "WBTC":
-            useToken = IntermediaryConfig.ASSETS.WBTC;
-            break;
-        case "USDC":
-            useToken = IntermediaryConfig.ASSETS.USDC;
-            break;
-        case "USDT":
-            useToken = IntermediaryConfig.ASSETS.USDT;
-            break;
-        default:
-            return false;
-    }
+    let useToken = IntermediaryConfig.ASSETS[token];
+    if(useToken==null) return false;
+
     const ata = await getOrCreateAssociatedTokenAccount(AnchorSigner.connection, AnchorSigner.signer, useToken.address, acc);
 
     const signature = await mintTo(AnchorSigner.connection, AnchorSigner.signer, useToken.address, ata.address, AnchorSigner.signer, amount);

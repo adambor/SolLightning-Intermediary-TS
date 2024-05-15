@@ -22,6 +22,7 @@ import {SolanaChainEvents} from "crosslightning-solana/dist/solana/events/Solana
 import {IntermediaryConfig} from "./IntermediaryConfig";
 import {SolanaIntermediaryRunnerWrapper} from "./runner/SolanaIntermediaryRunnerWrapper";
 import {X509Certificate} from "node:crypto";
+import {PublicKey} from "@solana/web3.js";
 
 async function main() {
     const directory = process.env.STORAGE_DIR;
@@ -30,13 +31,25 @@ async function main() {
         await fs.mkdir(directory)
     } catch (e) {}
 
-    const prices = new BinanceSwapPrice(
-        null,
-        IntermediaryConfig.ASSETS.USDC.address.toString(),
-        IntermediaryConfig.ASSETS.USDT.address.toString(),
-        IntermediaryConfig.ASSETS.WSOL.address.toString(),
-        IntermediaryConfig.ASSETS.WBTC.address.toString()
-    );
+    const coinMap: {
+        [address: string]: {
+            pair: string,
+            decimals: number,
+            // invert: boolean
+        }
+    } = {};
+    for(let asset in IntermediaryConfig.ASSETS) {
+        const assetData: {
+            address: PublicKey,
+            decimals: number,
+            pricing: string
+        } = IntermediaryConfig.ASSETS[asset];
+        coinMap[assetData.address.toString()] = {
+            pair: assetData.pricing,
+            decimals: assetData.decimals
+        }
+    }
+    const prices = new BinanceSwapPrice(null, coinMap);
 
     const bitcoinRpc = new BitcoindRpc(
         IntermediaryConfig.BITCOIND.PROTOCOL,

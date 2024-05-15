@@ -91,7 +91,8 @@ const IntermediaryConfigTemplate = {
     ASSETS: dictionaryParserWithKeys(
         objectParser({
             address: publicKeyParser(),
-            decimals: numberParser(false, 0)
+            decimals: numberParser(false, 0),
+            pricing: stringParser()
         }),
         ["USDC", "USDT", "WBTC", "WSOL"]
     ),

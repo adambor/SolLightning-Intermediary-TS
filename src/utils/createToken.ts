@@ -16,15 +16,18 @@ async function main() {
     if(result.ASSETS==null) result.ASSETS = {};
     result.ASSETS["WBTC"] = {
         address: mintWBTC.toBase58(),
-        decimals: 8
+        decimals: 8,
+        pricing: "WBTCBTC"
     };
     result.ASSETS["USDC"] = {
         address: mintUSDC.toBase58(),
-        decimals: 6
+        decimals: 6,
+        pricing: "!BTCUSDC"
     };
     result.ASSETS["USDT"] = {
         address: mintUSDT.toBase58(),
-        decimals: 6
+        decimals: 6,
+        pricing: "!BTCUSDT"
     };
 
     fs.writeFileSync(process.env.CONFIG_FILE, stringify(result));

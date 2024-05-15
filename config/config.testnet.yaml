@@ -43,15 +43,19 @@ ASSETS:
   WBTC:
     address: "4Jar76rqMxBfLDLa1syMd7i4R2YhGSkz2EYiAFyNVxja"
     decimals: 8
+    pricing: "WBTCBTC"
   USDC:
     address: "6jrUSQHX8MTJbtWpdbx65TAwUv1rLyCF6fVjr9yELS75"
     decimals: 6
+    pricing: "!BTCUSDC"
   USDT:
     address: "Ar5yfeSyDNDHyq1GvtcrDKjNcoVTQiv7JaVvuMDbGNDT"
     decimals: 6
+    pricing: "!BTCUSDT"
   WSOL:
     address: "So11111111111111111111111111111111111111112"
     decimals: 9
+    pricing: "SOLBTC"
 
 CLI:
   ADDRESS: "127.0.0.1"
