@@ -88,13 +88,12 @@ const IntermediaryConfigTemplate = {
         NETWORK_FEE_ADD_PERCENTAGE: percentageToPpmParser(0)
     }, null, true),
 
-    ASSETS: dictionaryParserWithKeys(
+    ASSETS: dictionaryParser(
         objectParser({
             address: publicKeyParser(),
             decimals: numberParser(false, 0),
             pricing: stringParser()
-        }),
-        ["USDC", "USDT", "WBTC", "WSOL"]
+        })
     ),
 
     CLI: objectParser({
