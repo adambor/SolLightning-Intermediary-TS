@@ -4,10 +4,10 @@ SOLANA:
   MAX_FEE_MICRO_LAMPORTS: 250000
   SECURITY_DEPOSIT_APY: 20
 
+#STATIC_TIP: 100000
 #JITO:
 #  PUBKEY: "DttWaMuVvTiduZRnguLF7jNxTgiMBZ1hyAumKUiL2KRL"
 #  ENDPOINT: "https://frankfurt.mainnet.block-engine.jito.wtf/api/v1/transactions"
-#  STATIC_TIP: 100000
 
 #Bitcoin RPC
 BITCOIND:

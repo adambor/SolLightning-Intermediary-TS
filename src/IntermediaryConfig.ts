@@ -52,8 +52,9 @@ const IntermediaryConfigTemplate = {
     JITO: objectParser({
         PUBKEY: publicKeyParser(),
         ENDPOINT: stringParser(),
-        STATIC_TIP: bnParser(new BN(0), null, true),
     }, null, true),
+
+    STATIC_TIP: bnParser(new BN(0), null, true),
 
     LND: objectParser({
         MNEMONIC_FILE: stringParser(null, null, true),

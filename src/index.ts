@@ -69,11 +69,18 @@ async function main() {
         new StorageManager<StoredDataAccount>(directory+"/solaccounts"),
         process.env.SWAP_CONTRACT_ADDRESS,
         null,
-        new SolanaFeeEstimator(AnchorSigner.connection, IntermediaryConfig.SOLANA.MAX_FEE_MICRO_LAMPORTS, 8, 100, "auto", IntermediaryConfig.JITO!=null ? {
-            address: IntermediaryConfig.JITO.PUBKEY.toString(),
-            endpoint: IntermediaryConfig.JITO.ENDPOINT,
-            getStaticFee: IntermediaryConfig.JITO.STATIC_TIP!=null ? () => IntermediaryConfig.JITO.STATIC_TIP : null
-        } : null)
+        new SolanaFeeEstimator(
+            AnchorSigner.connection,
+            IntermediaryConfig.SOLANA.MAX_FEE_MICRO_LAMPORTS,
+            8,
+            100,
+            "auto",
+            IntermediaryConfig.STATIC_TIP!=null ? () => IntermediaryConfig.STATIC_TIP : null,
+            IntermediaryConfig.JITO!=null ? {
+                address: IntermediaryConfig.JITO.PUBKEY.toString(),
+                endpoint: IntermediaryConfig.JITO.ENDPOINT
+            } : null
+        )
     );
     const chainEvents = new SolanaChainEvents(directory, AnchorSigner, swapContract);
 
