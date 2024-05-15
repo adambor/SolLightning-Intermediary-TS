@@ -62,6 +62,7 @@ export class SolanaIntermediaryRunnerWrapper<T extends SwapData> extends SolanaI
         super(directory, signer, tokens, prices, bitcoinRpc, btcRelay, swapContract, chainEvents);
         this.lpRegistry = new Registry(directory+"/lpRegistration.txt");
         this.addressesToTokens = {};
+        const tokenTickers = Object.keys(this.tokens);
         for(let ticker in this.tokens) {
             const tokenData = this.tokens[ticker];
             this.addressesToTokens[tokenData.address.toString()] = {
@@ -383,8 +384,8 @@ export class SolanaIntermediaryRunnerWrapper<T extends SwapData> extends SolanaI
                     args: {
                         asset: {
                             base: true,
-                            description: "Asset to transfer: WSOL, USDC, USDT, WBTC, BTC",
-                            parser: cmdEnumParser<"WSOL" | "USDC" | "USDT" | "WBTC" | "BTC">(["WSOL", "USDC", "USDT", "WBTC", "BTC"])
+                            description: "Asset to transfer: "+tokenTickers.concat(["BTC"]).join(", "),
+                            parser: cmdEnumParser<string>(tokenTickers.concat(["BTC"]))
                         },
                         address: {
                             base: true,
@@ -484,8 +485,8 @@ export class SolanaIntermediaryRunnerWrapper<T extends SwapData> extends SolanaI
                     args: {
                         asset: {
                             base: true,
-                            description: "Asset to transfer: WSOL, USDC, USDT, WBTC",
-                            parser: cmdEnumParser<"WSOL" | "USDC" | "USDT" | "WBTC">(["WSOL", "USDC", "USDT", "WBTC"])
+                            description: "Asset to transfer: "+tokenTickers.join(", "),
+                            parser: cmdEnumParser<string>(tokenTickers)
                         },
                         amount: {
                             base: true,
@@ -513,8 +514,8 @@ export class SolanaIntermediaryRunnerWrapper<T extends SwapData> extends SolanaI
                     args: {
                         asset: {
                             base: true,
-                            description: "Asset to transfer: WSOL, USDC, USDT, WBTC",
-                            parser: cmdEnumParser<"WSOL" | "USDC" | "USDT" | "WBTC">(["WSOL", "USDC", "USDT", "WBTC"])
+                            description: "Asset to transfer: "+tokenTickers.join(", "),
+                            parser: cmdEnumParser<string>(tokenTickers)
                         },
                         amount: {
                             base: true,
