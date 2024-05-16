@@ -93,7 +93,8 @@ const IntermediaryConfigTemplate = {
         objectParser({
             address: publicKeyParser(),
             decimals: numberParser(false, 0),
-            pricing: stringParser()
+            pricing: stringParser(),
+            disabled: booleanParser(true)
         })
     ),
 

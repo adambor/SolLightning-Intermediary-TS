@@ -50,7 +50,8 @@ export class SolanaIntermediaryRunnerWrapper<T extends SwapData> extends SolanaI
             [ticker: string]: {
                 address: PublicKey,
                 decimals: number,
-                pricing: string
+                pricing: string,
+                boolean?: boolean
             }
         },
         prices: ISwapPrice,
