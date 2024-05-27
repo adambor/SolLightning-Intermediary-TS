@@ -59,11 +59,11 @@ ASSETS:
 
 CLI:
   ADDRESS: "127.0.0.1"
-  PORT: 40221
+  PORT: 40121
 
 REST:
   ADDRESS: "0.0.0.0"
-  PORT: 4000
+  PORT: 4001
 
 #SSL:
 #  CERT_FILE: "./server.cert"
