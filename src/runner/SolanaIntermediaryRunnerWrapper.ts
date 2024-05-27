@@ -31,6 +31,7 @@ import {BITCOIN_NETWORK} from "../constants/Constants";
 import {IntermediaryConfig} from "../IntermediaryConfig";
 import {Registry} from "../Registry";
 import * as bolt11 from "bolt11";
+import * as repl from "node:repl";
 
 export class SolanaIntermediaryRunnerWrapper<T extends SwapData> extends SolanaIntermediaryRunner<T> {
 
@@ -141,24 +142,37 @@ export class SolanaIntermediaryRunnerWrapper<T extends SwapData> extends SolanaI
                     parser: async (args) => {
                         const reply: string[] = [];
                         reply.push("Solana address: "+this.swapContract.getAddress());
-                        const resp = await lncli.createChainAddress({
-                            lnd: this.LND,
-                            format: "p2wpkh"
-                        }).catch(e => console.error(e));
-                        if(resp==null) {
+
+                        let bitcoinAddress: string;
+                        let lndWalletLoaded = await this.tryConnectLNDWallet();
+                        if(lndWalletLoaded && this.LND!=null) {
+                            const walletStatus = await this.getLNDWalletStatus(getUnauthenticatedLndGrpc());
+                            if(walletStatus==="active") {
+                                const resp = await lncli.createChainAddress({
+                                    lnd: this.LND,
+                                    format: "p2wpkh"
+                                }).catch(e => console.error(e));
+                                if(resp!=null) {
+                                    bitcoinAddress = resp.address;
+                                }
+                            }
+                        }
+
+                        if(bitcoinAddress==null) {
                             const pubkey = getP2wpkhPubkey();
                             if(pubkey!=null) {
                                 const address = bitcoin.payments.p2wpkh({
                                     pubkey,
                                     network: BITCOIN_NETWORK
                                 }).address;
-                                reply.push("Bitcoin address: "+address);
+                                bitcoinAddress = address;
                             } else {
                                 reply.push("Bitcoin address: unknown (LND node unresponsive - not initialized?)");
+                                return reply.join("\n");
                             }
-                        } else {
-                            reply.push("Bitcoin address: "+resp.address);
                         }
+
+                        reply.push("Bitcoin address: "+bitcoinAddress);
                         return reply.join("\n");
                     }
                 }
