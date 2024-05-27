@@ -98,7 +98,13 @@ export class SolanaIntermediaryRunnerWrapper<T extends SwapData> extends SolanaI
                             reply.push("    Synced blocks: "+btcRpcStatus.blocks);
                         }
 
-                        const lndRpcStatus = await this.getLNDWalletStatus(getUnauthenticatedLndGrpc());
+                        let lndRpcStatus = "offline";
+                        try {
+                            const unauthenticatedRpc = getUnauthenticatedLndGrpc();
+                            lndRpcStatus =  await this.getLNDWalletStatus(unauthenticatedRpc);
+                        } catch (e) {
+                            console.error(e);
+                        }
                         reply.push("LND gRPC status:");
                         reply.push("    Wallet status: "+lndRpcStatus);
                         if(lndRpcStatus!="offline") {

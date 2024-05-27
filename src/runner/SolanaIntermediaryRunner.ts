@@ -151,7 +151,7 @@ export class SolanaIntermediaryRunner<T extends SwapData> extends EventEmitter {
             lnd = getUnauthenticatedLndGrpc();
         } catch (e) {
             console.error(e);
-            throw new Error("Error creating unathenticated connection to LND, cert file probably missing!");
+            return false;
         }
 
         const walletStatus = await this.getLNDWalletStatus(lnd);
