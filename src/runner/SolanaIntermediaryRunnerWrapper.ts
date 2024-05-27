@@ -32,6 +32,7 @@ import {IntermediaryConfig} from "../IntermediaryConfig";
 import {Registry} from "../Registry";
 import * as bolt11 from "bolt11";
 import * as repl from "node:repl";
+import {UnauthenticatedLnd} from "lightning";
 
 export class SolanaIntermediaryRunnerWrapper<T extends SwapData> extends SolanaIntermediaryRunner<T> {
 
@@ -144,9 +145,14 @@ export class SolanaIntermediaryRunnerWrapper<T extends SwapData> extends SolanaI
                         reply.push("Solana address: "+this.swapContract.getAddress());
 
                         let bitcoinAddress: string;
-                        let lndWalletLoaded = await this.tryConnectLNDWallet();
-                        if(lndWalletLoaded && this.LND!=null) {
-                            const walletStatus = await this.getLNDWalletStatus(getUnauthenticatedLndGrpc());
+                        let lnd: UnauthenticatedLnd;
+                        try {
+                            lnd = getUnauthenticatedLndGrpc();
+                        } catch (e) {
+                            console.error(e);
+                        }
+                        if(lnd!=null && this.LND!=null) {
+                            const walletStatus = await this.getLNDWalletStatus(lnd);
                             if(walletStatus==="active") {
                                 const synced = await this.isLNDSynced();
                                 if(synced) {
