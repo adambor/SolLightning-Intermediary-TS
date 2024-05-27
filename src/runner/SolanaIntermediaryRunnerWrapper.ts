@@ -148,12 +148,15 @@ export class SolanaIntermediaryRunnerWrapper<T extends SwapData> extends SolanaI
                         if(lndWalletLoaded && this.LND!=null) {
                             const walletStatus = await this.getLNDWalletStatus(getUnauthenticatedLndGrpc());
                             if(walletStatus==="active") {
-                                const resp = await lncli.createChainAddress({
-                                    lnd: this.LND,
-                                    format: "p2wpkh"
-                                }).catch(e => console.error(e));
-                                if(resp!=null) {
-                                    bitcoinAddress = resp.address;
+                                const synced = await this.isLNDSynced();
+                                if(synced) {
+                                    const resp = await lncli.createChainAddress({
+                                        lnd: this.LND,
+                                        format: "p2wpkh"
+                                    }).catch(e => console.error(e));
+                                    if(resp!=null) {
+                                        bitcoinAddress = resp.address;
+                                    }
                                 }
                             }
                         }

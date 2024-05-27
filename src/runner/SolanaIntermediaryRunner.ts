@@ -224,6 +224,14 @@ export class SolanaIntermediaryRunner<T extends SwapData> extends EventEmitter {
         console.log("[Main] LND wallet ready, continue!");
     }
 
+    async isLNDSynced() {
+        const resp = await lncli.getWalletInfo({
+            lnd: this.LND
+        });
+        console.log("[Main] LND blockheight: "+resp.current_block_height+" is_synced: "+resp.is_synced_to_chain);
+        return resp.is_synced_to_chain;
+    }
+
     /**
      * Checks if LND node is synchronized and ready
      */
@@ -231,11 +239,7 @@ export class SolanaIntermediaryRunner<T extends SwapData> extends EventEmitter {
         console.log("[Main] Waiting for LND node synchronization...");
         let lndReady: boolean = false;
         while(!lndReady) {
-            const resp = await lncli.getWalletInfo({
-                lnd: this.LND
-            });
-            console.log("[Main] LND blockheight: "+resp.current_block_height+" is_synced: "+resp.is_synced_to_chain);
-            if(resp.is_synced_to_chain) lndReady = true;
+            lndReady = await this.isLNDSynced();
             if(!lndReady) await new Promise(resolve => setTimeout(resolve, 30*1000));
         }
         console.log("[Main] LND node ready, continue!");
