@@ -145,6 +145,41 @@ export class SolanaIntermediaryRunner<T extends SwapData> extends EventEmitter {
         if (walletStatus.is_waiting) return "waiting";
     }
 
+
+    private createLNDWallet(lnd: UnauthenticatedLnd, mnemonic: string, password: string): Promise<{
+        macaroon: string
+    }> {
+        return new Promise<{
+            macaroon: string
+        }>((resolve, reject) => {
+            lnd.unlocker.initWallet({
+                aezeed_passphrase: undefined,
+                cipher_seed_mnemonic: mnemonic.split(' '),
+                wallet_password: Buffer.from(password, "utf8"),
+                recovery_window: 1000
+            }, (err, res) => {
+                if (!!err) {
+                    reject([503, 'UnexpectedInitWalletError', {err}]);
+                    return;
+                }
+
+                if (!res) {
+                    reject([503, 'ExpectedResponseForInitWallet']);
+                    return;
+                }
+
+                if (!Buffer.isBuffer(res.admin_macaroon)) {
+                    reject([503, 'ExpectedAdminMacaroonToCrateWallet']);
+                    return;
+                }
+
+                resolve({
+                    macaroon: res.admin_macaroon.toString("base64")
+                });
+            });
+        });
+    }
+
     async tryConnectLNDWallet(): Promise<boolean> {
         let lnd: UnauthenticatedLnd;
         try {
@@ -181,11 +216,7 @@ export class SolanaIntermediaryRunner<T extends SwapData> extends EventEmitter {
             if(password==null) {
                 throw new Error("Invalid LND wallet password file provided!");
             }
-            await lncli.createWallet({
-                lnd,
-                seed: mnemonic,
-                password
-            });
+            await this.createLNDWallet(lnd, mnemonic, password);
             return false;
         }
         if(walletStatus==="locked") {

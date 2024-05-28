@@ -31,7 +31,6 @@ import {BITCOIN_NETWORK} from "../constants/Constants";
 import {IntermediaryConfig} from "../IntermediaryConfig";
 import {Registry} from "../Registry";
 import * as bolt11 from "bolt11";
-import * as repl from "node:repl";
 import {UnauthenticatedLnd} from "lightning";
 
 export class SolanaIntermediaryRunnerWrapper<T extends SwapData> extends SolanaIntermediaryRunner<T> {
