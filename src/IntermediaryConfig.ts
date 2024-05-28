@@ -86,7 +86,10 @@ const IntermediaryConfigTemplate = {
         MIN: decimalToBNParser(8, 0),
         MAX: decimalToBNParser(8, 0),
 
-        NETWORK_FEE_ADD_PERCENTAGE: percentageToPpmParser(0)
+        NETWORK_FEE_ADD_PERCENTAGE: percentageToPpmParser(0),
+
+        ADD_NETWORK_FEE: numberParser(true, 0, null, true),
+        MULTIPLY_NETWORK_FEE: numberParser(true, 0, null, true),
     }, null, true),
 
     ASSETS: dictionaryParser(

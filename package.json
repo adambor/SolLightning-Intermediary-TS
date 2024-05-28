@@ -1,6 +1,6 @@
 {
   "name": "solbridge-ts",
-  "version": "1.0.0",
+  "version": "0.0.15",
   "description": "SOLBridge intermediary implementation",
   "main": "index.js",
   "scripts": {
@@ -31,7 +31,7 @@
     "btcrelay-bitcoind": "5.0.6",
     "cors": "^2.8.5",
     "crosslightning-base": "6.0.3",
-    "crosslightning-intermediary": "9.4.22",
+    "crosslightning-intermediary": "9.4.23",
     "crosslightning-solana": "5.4.1",
     "crypto": "^1.0.1",
     "dotenv": "^16.0.3",

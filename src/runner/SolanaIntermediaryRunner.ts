@@ -297,7 +297,9 @@ export class SolanaIntermediaryRunner<T extends SwapData> extends EventEmitter {
             IntermediaryConfig.BITCOIND.HOST,
             IntermediaryConfig.BITCOIND.PORT,
             IntermediaryConfig.BITCOIND.RPC_USERNAME,
-            IntermediaryConfig.BITCOIND.RPC_PASSWORD
+            IntermediaryConfig.BITCOIND.RPC_PASSWORD,
+            IntermediaryConfig.ONCHAIN?.ADD_NETWORK_FEE,
+            IntermediaryConfig.ONCHAIN?.MULTIPLY_NETWORK_FEE
         );
 
         if(IntermediaryConfig.ONCHAIN!=null) {
