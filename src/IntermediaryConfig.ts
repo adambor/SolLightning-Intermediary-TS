@@ -40,14 +40,15 @@ const IntermediaryConfigTemplate = {
         if(data.MNEMONIC_FILE==null && data.PRIVKEY==null) throw new Error("Mnemonic file or explicit private key must be specified!");
     }),
 
+    BITCOIN_NETWORK: enumParser(["mainnet", "testnet"]),
+
     BITCOIND: objectParser({
         PROTOCOL: enumParser(["http", "https"]),
         PORT: numberParser(false, 0, 65535),
         HOST: stringParser(),
         RPC_USERNAME: stringParser(),
         RPC_PASSWORD: stringParser(),
-        NETWORK: enumParser(["mainnet", "testnet"]),
-    }),
+    }, null, true),
 
     JITO: objectParser({
         PUBKEY: publicKeyParser(),

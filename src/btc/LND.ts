@@ -10,7 +10,11 @@ import { randomBytes } from "crypto";
 
 const bip32 = BIP32Factory(ecc);
 
-export function getAuthenticatedLndGrpc(): AuthenticatedLnd {
+export function getAuthenticatedLndDetails(): {
+    cert: string,
+    macaroon: string,
+    socket: string
+} {
     let cert: string = IntermediaryConfig.LND.CERT;
     if(IntermediaryConfig.LND.CERT_FILE!=null) {
         if(!fs.existsSync(IntermediaryConfig.LND.CERT_FILE)) throw new Error("Certificate file not found!");
@@ -23,12 +27,15 @@ export function getAuthenticatedLndGrpc(): AuthenticatedLnd {
         macaroon = fs.readFileSync(IntermediaryConfig.LND.MACAROON_FILE).toString("base64");
     }
 
-    const {lnd: LND} = authenticatedLndGrpc({
+    return {
         cert,
         macaroon,
         socket: IntermediaryConfig.LND.HOST+':'+IntermediaryConfig.LND.PORT,
-    });
+    };
+}
 
+export function getAuthenticatedLndGrpc(): AuthenticatedLnd {
+    const {lnd: LND} = authenticatedLndGrpc(getAuthenticatedLndDetails());
     return LND;
 }
 

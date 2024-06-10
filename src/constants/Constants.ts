@@ -3,7 +3,7 @@ import * as bitcoin from "bitcoinjs-lib";
 import {IntermediaryConfig} from "../IntermediaryConfig";
 
 //Bitcoin
-export const BITCOIN_NETWORK = IntermediaryConfig.BITCOIND.NETWORK==="mainnet" ? bitcoin.networks.bitcoin : bitcoin.networks.testnet;
+export const BITCOIN_NETWORK = IntermediaryConfig.BITCOIN_NETWORK==="mainnet" ? bitcoin.networks.bitcoin : bitcoin.networks.testnet;
 export const BITCOIN_BLOCKTIME = new BN(process.env.BITCOIN_BLOCKTIME);
 
 //Swap safety

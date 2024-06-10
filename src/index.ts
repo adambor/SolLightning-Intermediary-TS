@@ -51,40 +51,10 @@ async function main() {
     }
     const prices = new BinanceSwapPrice(null, coinMap);
 
-    const bitcoinRpc = new BitcoindRpc(
-        IntermediaryConfig.BITCOIND.PROTOCOL,
-        IntermediaryConfig.BITCOIND.RPC_USERNAME,
-        IntermediaryConfig.BITCOIND.RPC_PASSWORD,
-        IntermediaryConfig.BITCOIND.HOST,
-        IntermediaryConfig.BITCOIND.PORT
-    );
-
-    console.log("[Main]: Running in bitcoin "+IntermediaryConfig.BITCOIND.NETWORK+" mode!");
+    console.log("[Main]: Running in bitcoin "+IntermediaryConfig.BITCOIN_NETWORK+" mode!");
     console.log("[Main]: Using RPC: "+IntermediaryConfig.SOLANA.RPC_URL+"!");
 
-    const btcRelay = new SolanaBtcRelay(AnchorSigner, bitcoinRpc, process.env.BTC_RELAY_CONTRACT_ADDRESS);
-    const swapContract = new SolanaSwapProgram(
-        AnchorSigner,
-        btcRelay,
-        new StorageManager<StoredDataAccount>(directory+"/solaccounts"),
-        process.env.SWAP_CONTRACT_ADDRESS,
-        null,
-        new SolanaFeeEstimator(
-            AnchorSigner.connection,
-            IntermediaryConfig.SOLANA.MAX_FEE_MICRO_LAMPORTS,
-            8,
-            100,
-            "auto",
-            IntermediaryConfig.STATIC_TIP!=null ? () => IntermediaryConfig.STATIC_TIP : null,
-            IntermediaryConfig.JITO!=null ? {
-                address: IntermediaryConfig.JITO.PUBKEY.toString(),
-                endpoint: IntermediaryConfig.JITO.ENDPOINT
-            } : null
-        )
-    );
-    const chainEvents = new SolanaChainEvents(directory, AnchorSigner, swapContract);
-
-    const runner = new SolanaIntermediaryRunnerWrapper(directory, AnchorSigner, IntermediaryConfig.ASSETS, prices, bitcoinRpc, btcRelay, swapContract, chainEvents);
+    const runner = new SolanaIntermediaryRunnerWrapper(directory, AnchorSigner, IntermediaryConfig.ASSETS, prices);
     await runner.init();
 }
 

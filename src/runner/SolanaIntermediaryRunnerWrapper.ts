@@ -55,13 +55,9 @@ export class SolanaIntermediaryRunnerWrapper<T extends SwapData> extends SolanaI
                 boolean?: boolean
             }
         },
-        prices: ISwapPrice,
-        bitcoinRpc: BitcoinRpc<any>,
-        btcRelay: BtcRelay<any, any, any>,
-        swapContract: SwapContract<T, any, any, any>,
-        chainEvents: ChainEvents<T>
+        prices: ISwapPrice
     ) {
-        super(directory, signer, tokens, prices, bitcoinRpc, btcRelay, swapContract, chainEvents);
+        super(directory, signer, tokens, prices);
         this.lpRegistry = new Registry(directory+"/lpRegistration.txt");
         this.addressesToTokens = {};
         const tokenTickers = Object.keys(this.tokens);
@@ -90,7 +86,10 @@ export class SolanaIntermediaryRunnerWrapper<T extends SwapData> extends SolanaI
                         reply.push("Solana RPC status:");
                         reply.push("    Status: "+(solRpcOK ? "ready" : "offline!"));
 
-                        const btcRpcStatus = await this.bitcoinRpc.getSyncInfo().catch(e => null);
+                        const btcRpcStatus = await this.bitcoinRpc.getSyncInfo().catch(e => {
+                            console.error(e)
+                            return null;
+                        });
                         reply.push("Bitcoin RPC status:");
                         reply.push("    Status: "+(btcRpcStatus==null ? "offline" : btcRpcStatus.ibd ? "verifying blockchain" : "ready"));
                         if(btcRpcStatus!=null) {
@@ -664,7 +663,7 @@ export class SolanaIntermediaryRunnerWrapper<T extends SwapData> extends SolanaI
                             const {status, url} = await this.lpRegistry.getRegistrationStatus();
                             return "LP registration status: "+status+"\nGithub PR: "+url;
                         } else {
-                            const url = await this.lpRegistry.register(IntermediaryConfig.BITCOIND.NETWORK==="testnet", this.sslAutoUrl, args.mail==="" ? null : args.mail);
+                            const url = await this.lpRegistry.register(IntermediaryConfig.BITCOIN_NETWORK==="testnet", this.sslAutoUrl, args.mail==="" ? null : args.mail);
                             return "LP registration request created: "+url;
                         }
                     }

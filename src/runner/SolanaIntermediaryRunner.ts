@@ -1,5 +1,10 @@
 import {getEnabledPlugins} from "../plugins";
-import {getAuthenticatedLndGrpc, getUnauthenticatedLndGrpc, LND_MNEMONIC_FILE} from "../btc/LND";
+import {
+    getAuthenticatedLndDetails,
+    getAuthenticatedLndGrpc,
+    getUnauthenticatedLndGrpc,
+    LND_MNEMONIC_FILE
+} from "../btc/LND";
 import {
     AUTHORIZATION_TIMEOUT,
     BITCOIN_BLOCKTIME, BITCOIN_NETWORK, CHAIN_SEND_SAFETY_FACTOR,
@@ -17,9 +22,9 @@ import {
     IBtcFeeEstimator,
     InfoHandler,
     IntermediaryStorageManager,
-    ISwapPrice,
+    ISwapPrice, NeutrinoRpc,
     OneDollarFeeEstimator,
-    PluginManager,
+    PluginManager, StorageManager,
     SwapHandler,
     SwapHandlerSwap,
     ToBtcAbs,
@@ -36,6 +41,10 @@ import {Keypair, PublicKey} from "@solana/web3.js";
 import {LetsEncryptACME} from "../LetsEncryptACME";
 import * as tls from "node:tls";
 import {EventEmitter} from "node:events";
+import {BitcoindRpc} from "btcrelay-bitcoind";
+import {SolanaBtcRelay, SolanaFeeEstimator, SolanaSwapProgram, StoredDataAccount} from "crosslightning-solana";
+import AnchorSigner from "../chains/solana/signer/AnchorSigner";
+import { SolanaChainEvents } from "crosslightning-solana/dist/solana/events/SolanaChainEvents";
 
 export enum SolanaInitState {
     STARTING="starting",
@@ -63,10 +72,11 @@ export class SolanaIntermediaryRunner<T extends SwapData> extends EventEmitter {
     };
     readonly allowedTokens: string[];
     readonly prices: ISwapPrice;
-    readonly bitcoinRpc: BitcoinRpc<any>;
-    readonly btcRelay: BtcRelay<any, any, any>;
-    readonly swapContract: SwapContract<T, any, any, any>;
-    readonly chainEvents: ChainEvents<T>;
+    readonly isNeutrino: boolean;
+    bitcoinRpc: BitcoinRpc<any>;
+    btcRelay: BtcRelay<any, any, any>;
+    swapContract: SwapContract<T, any, any, any>;
+    chainEvents: ChainEvents<T>;
     readonly signer: (AnchorProvider & {signer: Keypair});
 
     readonly swapHandlers: SwapHandler<SwapHandlerSwap<T>, T>[] = [];
@@ -94,11 +104,7 @@ export class SolanaIntermediaryRunner<T extends SwapData> extends EventEmitter {
                 disabled?: boolean
             }
         },
-        prices: ISwapPrice,
-        bitcoinRpc: BitcoinRpc<any>,
-        btcRelay: BtcRelay<any, any, any>,
-        swapContract: SwapContract<T, any, any, any>,
-        chainEvents: ChainEvents<T>
+        prices: ISwapPrice
     ) {
         super();
         this.directory = directory;
@@ -106,10 +112,18 @@ export class SolanaIntermediaryRunner<T extends SwapData> extends EventEmitter {
         this.tokens = tokens;
         this.allowedTokens = Object.keys(tokens).map<string>(key => tokens[key].disabled ? null : tokens[key].address.toString()).filter(e => e!=null);
         this.prices = prices;
-        this.bitcoinRpc = bitcoinRpc;
-        this.btcRelay = btcRelay;
-        this.swapContract = swapContract;
-        this.chainEvents = chainEvents;
+
+        if(IntermediaryConfig.BITCOIND!=null) {
+            this.bitcoinRpc = new BitcoindRpc(
+                IntermediaryConfig.BITCOIND.PROTOCOL,
+                IntermediaryConfig.BITCOIND.RPC_USERNAME,
+                IntermediaryConfig.BITCOIND.RPC_PASSWORD,
+                IntermediaryConfig.BITCOIND.HOST,
+                IntermediaryConfig.BITCOIND.PORT
+            );
+        }
+
+        this.isNeutrino = this.bitcoinRpc==null;
     }
 
     /**
@@ -292,15 +306,16 @@ export class SolanaIntermediaryRunner<T extends SwapData> extends EventEmitter {
     }
 
     registerSwapHandlers(): void {
-
-        this.btcFeeEstimator = new OneDollarFeeEstimator(
-            IntermediaryConfig.BITCOIND.HOST,
-            IntermediaryConfig.BITCOIND.PORT,
-            IntermediaryConfig.BITCOIND.RPC_USERNAME,
-            IntermediaryConfig.BITCOIND.RPC_PASSWORD,
-            IntermediaryConfig.ONCHAIN?.ADD_NETWORK_FEE,
-            IntermediaryConfig.ONCHAIN?.MULTIPLY_NETWORK_FEE
-        );
+        if(!this.isNeutrino) {
+            this.btcFeeEstimator = new OneDollarFeeEstimator(
+                IntermediaryConfig.BITCOIND.HOST,
+                IntermediaryConfig.BITCOIND.PORT,
+                IntermediaryConfig.BITCOIND.RPC_USERNAME,
+                IntermediaryConfig.BITCOIND.RPC_PASSWORD,
+                IntermediaryConfig.ONCHAIN?.ADD_NETWORK_FEE,
+                IntermediaryConfig.ONCHAIN?.MULTIPLY_NETWORK_FEE
+            );
+        }
 
         if(IntermediaryConfig.ONCHAIN!=null) {
             this.swapHandlers.push(
@@ -527,8 +542,10 @@ export class SolanaIntermediaryRunner<T extends SwapData> extends EventEmitter {
     }
 
     async init() {
-        this.setState(SolanaInitState.WAIT_BTC_RPC);
-        await this.waitForBitcoinRpc();
+        if(!this.isNeutrino) {
+            this.setState(SolanaInitState.WAIT_BTC_RPC);
+            await this.waitForBitcoinRpc();
+        }
         this.setState(SolanaInitState.WAIT_LND_WALLET);
         await this.waitForLNDWallet();
         this.setState(SolanaInitState.WAIT_LND_SYNC);
@@ -536,6 +553,36 @@ export class SolanaIntermediaryRunner<T extends SwapData> extends EventEmitter {
         await this.waitForLNDSync();
 
         this.setState(SolanaInitState.CONTRACT_INIT);
+        if(this.isNeutrino) {
+            const lndConnectInfo = getAuthenticatedLndDetails();
+            this.bitcoinRpc = new NeutrinoRpc(lndConnectInfo.socket, lndConnectInfo.macaroon, lndConnectInfo.cert);
+        }
+        const btcRelay = new SolanaBtcRelay(AnchorSigner, this.bitcoinRpc, process.env.BTC_RELAY_CONTRACT_ADDRESS);
+        const swapContract = new SolanaSwapProgram(
+            AnchorSigner,
+            btcRelay,
+            new StorageManager<StoredDataAccount>(this.directory+"/solaccounts"),
+            process.env.SWAP_CONTRACT_ADDRESS,
+            null,
+            new SolanaFeeEstimator(
+                AnchorSigner.connection,
+                IntermediaryConfig.SOLANA.MAX_FEE_MICRO_LAMPORTS,
+                8,
+                100,
+                "auto",
+                IntermediaryConfig.STATIC_TIP!=null ? () => IntermediaryConfig.STATIC_TIP : null,
+                IntermediaryConfig.JITO!=null ? {
+                    address: IntermediaryConfig.JITO.PUBKEY.toString(),
+                    endpoint: IntermediaryConfig.JITO.ENDPOINT
+                } : null
+            )
+        );
+        const chainEvents = new SolanaChainEvents(this.directory, AnchorSigner, swapContract);
+
+        this.btcRelay = btcRelay;
+        this.swapContract = swapContract as any;
+        this.chainEvents = chainEvents;
+
         await this.swapContract.start();
         console.log("[Main]: Swap contract initialized!");
 
