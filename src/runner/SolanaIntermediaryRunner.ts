@@ -348,7 +348,7 @@ export class SolanaIntermediaryRunner<T extends SwapData> extends EventEmitter {
                     confirmations: 2,
                     swapCsvDelta: 72,
 
-                    refundInterval: 5 * 60 * 1000,
+                    swapCheckInterval: 5 * 60 * 1000,
                     securityDepositAPY: IntermediaryConfig.SOLANA.SECURITY_DEPOSIT_APY.toNumber() / 1000000
                 })
             );
@@ -391,7 +391,7 @@ export class SolanaIntermediaryRunner<T extends SwapData> extends EventEmitter {
 
                     minCltv: new BN(20),
 
-                    refundInterval: 1*60*1000,
+                    swapCheckInterval: 1*60*1000,
                     securityDepositAPY: IntermediaryConfig.SOLANA.SECURITY_DEPOSIT_APY.toNumber()/1000000
                 })
             );

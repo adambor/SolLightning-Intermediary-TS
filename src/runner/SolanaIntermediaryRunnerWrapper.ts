@@ -694,7 +694,7 @@ export class SolanaIntermediaryRunnerWrapper<T extends SwapData> extends SolanaI
                                         "Payment hash: "+_swap.data.getHash(),
                                         "State: "+ToBtcSwapState[swap.state],
                                         "Swap fee: "+toDecimal(swap.swapFee, 8)+" BTC",
-                                        "Network fee: "+toDecimal(swap.networkFee, 8)+" BTC",
+                                        "Network fee: "+toDecimal(swap.quotedNetworkFee, 8)+" BTC",
                                         "Address: "+swap.address
                                     ];
                                     if(swap.txId!=null) {
@@ -713,11 +713,11 @@ export class SolanaIntermediaryRunnerWrapper<T extends SwapData> extends SolanaI
                                         "Payment hash: "+_swap.data.getHash(),
                                         "State: "+ToBtcLnSwapState[swap.state],
                                         "Swap fee: "+toDecimal(swap.swapFee, 8)+" BTC-LN",
-                                        "Network fee: "+toDecimal(swap.maxFee, 8)+" BTC-LN",
+                                        "Network fee: "+toDecimal(swap.quotedNetworkFee, 8)+" BTC-LN",
                                         "Invoice: "+swap.pr,
                                     ];
-                                    if(swap.realRoutingFee!=null) {
-                                        lines.push("Paid network fee: "+toDecimal(swap.realRoutingFee, 8)+" BTC-LN");
+                                    if(swap.realNetworkFee!=null) {
+                                        lines.push("Paid network fee: "+toDecimal(swap.realNetworkFee, 8)+" BTC-LN");
                                     }
                                     swapData.push(lines.join("\n"));
                                 }

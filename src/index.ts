@@ -4,25 +4,19 @@ dotenv.config();
 import * as fs from "fs/promises";
 import AnchorSigner from "./chains/solana/signer/AnchorSigner";
 import {testnet} from "bitcoinjs-lib/src/networks";
+import {SolanaBtcRelay, SolanaFees, SolanaSwapProgram, StoredDataAccount} from "crosslightning-solana";
+import {BinanceSwapPrice, StorageManager} from "crosslightning-intermediary";
+import {BitcoindRpc} from "btcrelay-bitcoind";
+import {SolanaChainEvents} from "crosslightning-solana/dist/solana/events/SolanaChainEvents";
+import {IntermediaryConfig} from "./IntermediaryConfig";
+import {SolanaIntermediaryRunnerWrapper} from "./runner/SolanaIntermediaryRunnerWrapper";
+import {PublicKey} from "@solana/web3.js";
 
 const bitcoin_chainparams = { ...testnet };
 bitcoin_chainparams.bip32 = {
     public: 0x045f1cf6,
     private: 0x045f18bc,
 };
-
-import {SolanaBtcRelay, SolanaFeeEstimator, SolanaSwapData, SolanaSwapProgram, StoredDataAccount} from "crosslightning-solana";
-import {BinanceSwapPrice, FromBtcAbs, FromBtcLnAbs,
-    InfoHandler,
-    SwapHandler, ToBtcAbs, ToBtcLnAbs, StorageManager, FromBtcSwapAbs, ToBtcSwapAbs, PluginManager,
-    IntermediaryStorageManager,
-    OneDollarFeeEstimator} from "crosslightning-intermediary";
-import {BitcoindRpc} from "btcrelay-bitcoind";
-import {SolanaChainEvents} from "crosslightning-solana/dist/solana/events/SolanaChainEvents";
-import {IntermediaryConfig} from "./IntermediaryConfig";
-import {SolanaIntermediaryRunnerWrapper} from "./runner/SolanaIntermediaryRunnerWrapper";
-import {X509Certificate} from "node:crypto";
-import {PublicKey} from "@solana/web3.js";
 
 async function main() {
     const directory = process.env.STORAGE_DIR;
@@ -69,7 +63,7 @@ async function main() {
         new StorageManager<StoredDataAccount>(directory+"/solaccounts"),
         process.env.SWAP_CONTRACT_ADDRESS,
         null,
-        new SolanaFeeEstimator(
+        new SolanaFees(
             AnchorSigner.connection,
             IntermediaryConfig.SOLANA.MAX_FEE_MICRO_LAMPORTS,
             8,
